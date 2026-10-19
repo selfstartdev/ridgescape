@@ -38,7 +38,15 @@ export function buildOutline(layer: Layer, size: Size, { overscan = 0, tolerance
   const count = values.length;
   const baseline = resolveLength(layer.baseline, size.height);
   const amplitude = resolveLength(layer.amplitude, size.height);
-  const anchors = layer.anchors.map((a) => anchorShape(a, size, period));
+  // Height of the profile itself at x, between samples.
+  const profileAt = (x: number) => {
+    const u = x / step;
+    const i = Math.floor(u);
+    const a = values[mod(i, count)]!, b = values[mod(i + 1, count)]!;
+    return baseline + amplitude * (a + (b - a) * (u - i));
+  };
+  const pointed = layer.profile === "peaks";
+  const anchors = layer.anchors.map((a) => anchorShape(a, size, period, profileAt, pointed));
 
   // Samples sit on the profile's own grid (x = i × step), so a wider element only adds samples at the ends.
   const first = -1;
@@ -56,19 +64,35 @@ export function buildOutline(layer: Layer, size: Size, { overscan = 0, tolerance
   return { crest, top, baseline: size.height - baseline, bottom: size.height + Math.max(0, overscan) };
 }
 
-/** An anchor as a function from (x, height) to the adjusted height. */
-function anchorShape(anchor: Anchor, size: Size, period: number): (x: number, h: number, baseline: number) => number {
+/**
+ * An anchor as a function from (x, height) to the adjusted height.
+ *
+ * Peaks and dips lift or lower the terrain as a whole, so its detail rides along and the summit is
+ * still craggy; on a "peaks" layer the lift comes to a point. Flat anchors replace the terrain with
+ * a level stretch over the middle half of their width.
+ */
+function anchorShape(
+  anchor: Anchor,
+  size: Size,
+  period: number,
+  profileAt: (x: number) => number,
+  pointed: boolean,
+): (x: number, h: number, baseline: number) => number {
   const at = resolveLength(anchor.at, size.width);
   const radius = Math.min(period / 2, Math.max(1, resolveLength(anchor.width, size.width) / 2));
   const height = resolveLength(anchor.height, size.height);
-  // A flat anchor holds its level over the middle half of its width.
-  const inner = anchor.kind === "flat" ? radius / 2 : 0;
+  const flat = anchor.kind === "flat";
+  const inner = flat ? radius / 2 : 0;
+  const lift = pointed && anchor.kind === "peak";
+  const center = profileAt(at);
   return (x, h, baseline) => {
     let d = mod(x - at, period);
     d = Math.min(d, period - d);
     if (d >= radius) return h;
-    const w = d <= inner ? 1 : 0.5 * (1 + Math.cos((Math.PI * (d - inner)) / (radius - inner)));
-    return h + w * (baseline + height - h);
+    const t = d <= inner ? 0 : (d - inner) / (radius - inner);
+    // Pointed: steep near the top, easing out at the foot. Otherwise a raised cosine.
+    const w = lift ? (1 - t) ** 2 * (1 + 2 * t) * (1 - t) ** 0.6 : 0.5 * (1 + Math.cos(Math.PI * t));
+    return flat ? h + w * (baseline + height - h) : h + w * (baseline + height - center);
   };
 }
 

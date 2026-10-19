@@ -36,18 +36,20 @@ export interface Octaves {
 
 /**
  * Sum of octaves, each with twice the cells of the last (so every octave is
- * periodic too). `shape` maps each octave's raw value before it's summed.
+ * periodic too). `shape` maps each octave's raw value (and its index) before
+ * it's summed.
  * Sampled at x ∈ [0, 1) of the period.
  */
-export function octaves(random: Random, { cells, count, gain }: Octaves, shape: (v: number) => number = (v) => v): (x: number) => number {
+export function octaves(random: Random, { cells, count, gain }: Octaves, shape: (v: number, octave: number) => number = (v) => v): (x: number) => number {
   const layers = Array.from({ length: count }, (_, k) => ({
+    k,
     cells: Math.round(cells) * 2 ** k,
     weight: gain ** k,
     noise: periodicNoise(random.fork("octave", k), Math.round(cells) * 2 ** k),
   }));
   return (x) => {
     let sum = 0;
-    for (const o of layers) sum += o.weight * shape(o.noise(x * o.cells));
+    for (const o of layers) sum += o.weight * shape(o.noise(x * o.cells), o.k);
     return sum;
   };
 }

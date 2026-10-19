@@ -22,7 +22,7 @@ const ANCHOR_KINDS: readonly AnchorKind[] = ["peak", "dip", "flat"];
 /** Per profile: default roughness, and hill width relative to the depth default. */
 export const PROFILE_DEFAULTS: Record<ProfileKind, { roughness: number; wavelength: number }> = {
   rolling: { roughness: 0.35, wavelength: 1 },
-  peaks: { roughness: 0.6, wavelength: 0.8 },
+  peaks: { roughness: 0.75, wavelength: 0.8 },
   mesa: { roughness: 0.3, wavelength: 1.3 },
   dunes: { roughness: 0.25, wavelength: 0.55 },
 };

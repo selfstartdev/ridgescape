@@ -37,8 +37,9 @@ const shapes: Record<ProfileKind, (seed: string, cells: number, roughness: numbe
     return octaves(createRandom(seed), octavesFor(roughness, cells));
   },
   peaks(seed, cells, roughness) {
-    // Ridged noise: each octave folded at zero, so crests come to a point.
-    return octaves(createRandom(seed), octavesFor(roughness, cells), (v) => (1 - Math.abs(v)) ** 2);
+    // Ridged noise in the large octaves, so crests come to a point; plain noise in the small ones,
+    // since ridged detail turns the whole edge into a row of scallops.
+    return octaves(createRandom(seed), octavesFor(roughness, cells), (v, k) => (k < 2 ? (1 - Math.abs(v)) ** 2 : 0.6 * v));
   },
   mesa(seed, cells, roughness) {
     // Smooth here; `finish` turns it into plateaus.
