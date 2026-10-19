@@ -57,6 +57,31 @@ export interface Trees {
   seed: string;
 }
 
+/** A lake on a layer: its ground is flattened under a stretch of water that reflects what's behind. */
+export interface LakeInput {
+  /** Centre: px, or % of the element's width. */
+  at: Length;
+  /** Width of the water: px, or % of the element's width. Default "30%". */
+  width?: Length;
+  /** Water level above the layer's baseline: px, or % of the element's height. Default 12% of the amplitude. */
+  level?: Length;
+  /** Water colour. Default: the sky's bottom colour, darkened toward the layer's. */
+  color?: string;
+  /** 0–1: how clearly it mirrors the layers behind it. Default 0.6. */
+  reflection?: number;
+  /** 0–1: how many ripple streaks. Default 0.5. */
+  ripples?: number;
+}
+
+export interface Lake {
+  at: Length;
+  width: Length;
+  level: Length;
+  color: string;
+  reflection: number;
+  ripples: number;
+}
+
 export interface LayerInput {
   /** Default "rolling". */
   profile?: ProfileKind;
@@ -79,6 +104,7 @@ export interface LayerInput {
   anchors?: AnchorInput[];
   /** A tree line along the crest: true for the defaults. */
   trees?: boolean | TreesInput | null;
+  lakes?: LakeInput[];
   /** Default: derived from the scene's seed and the layer's index. */
   seed?: KeyPart;
 }
@@ -96,6 +122,7 @@ export interface Layer {
   mist: number;
   anchors: Anchor[];
   trees: Trees | null;
+  lakes: Lake[];
   seed: string;
 }
 

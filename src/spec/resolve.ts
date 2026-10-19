@@ -32,6 +32,8 @@ import type {
   TreeKind,
   Trees,
   TreesInput,
+  Lake,
+  LakeInput,
 } from "./types";
 import { layerColor, mix } from "../color";
 
@@ -96,6 +98,8 @@ export const TREE_DEFAULTS = {
 
 const TREE_KINDS: readonly TreeKind[] = ["conifer", "deciduous", "mixed"];
 
+export const LAKE_DEFAULTS = { width: "30%" as const, level: 0.12, reflection: 0.6, ripples: 0.5 };
+
 /** Anchor heights by kind, as fractions of the layer's amplitude. */
 export const ANCHOR_HEIGHTS: Record<AnchorKind, number> = { peak: 1.15, dip: 0, flat: 0.2 };
 
@@ -136,6 +140,7 @@ function resolveLayer(input: LayerInput, ctx: LayerContext): Layer {
   const p = PROFILE_DEFAULTS[profile];
   const amplitude = length(input.amplitude ?? scaleLength(ctx.height, DEPTH_DEFAULTS.amplitude(depth)), "amplitude");
   const seed = String(input.seed ?? `${ctx.seed}:${ctx.index}`);
+  const color = input.color ?? layerColor(ctx.palette, ctx.haze, depth);
   return {
     profile,
     depth,
@@ -144,12 +149,33 @@ function resolveLayer(input: LayerInput, ctx: LayerContext): Layer {
     roughness: unit(input.roughness ?? round(p.roughness * DEPTH_DEFAULTS.roughness(depth)), "roughness"),
     wavelength: positive(input.wavelength ?? Math.round(DEPTH_DEFAULTS.wavelength(depth) * p.wavelength), "wavelength"),
     period: positive(input.period ?? Math.round(DEPTH_DEFAULTS.period(depth)), "period"),
-    color: input.color ?? layerColor(ctx.palette, ctx.haze, depth),
+    color,
     mist: unit(input.mist ?? ctx.palette.mist, "mist"),
     anchors: (input.anchors ?? []).map((a) => resolveAnchor(a, amplitude)),
     trees: input.trees ? resolveTrees(input.trees === true ? {} : input.trees, depth, seed) : null,
+    lakes: (input.lakes ?? []).map((l) => resolveLake(l, amplitude, color, ctx.palette)),
     seed,
   };
+}
+
+function resolveLake(input: LakeInput | Lake, amplitude: Layer["amplitude"], layerColor: string, palette: Palette): Lake {
+  return {
+    at: length(input.at, "lake at"),
+    width: length(input.width ?? LAKE_DEFAULTS.width, "lake width"),
+    level: length(input.level ?? scaleLength(amplitude, LAKE_DEFAULTS.level), "lake level"),
+    color: input.color ?? waterColor(palette.sky[1], layerColor),
+    reflection: unit(input.reflection ?? LAKE_DEFAULTS.reflection, "lake reflection"),
+    ripples: unit(input.ripples ?? LAKE_DEFAULTS.ripples, "lake ripples"),
+  };
+}
+
+/** Water takes the sky's colour, a little toward the land around it. */
+function waterColor(sky: string, land: string): string {
+  try {
+    return mix(sky, land, 0.35);
+  } catch {
+    return land;
+  }
 }
 
 function resolveTrees(input: TreesInput | Trees, depth: number, layerSeed: string): Trees {

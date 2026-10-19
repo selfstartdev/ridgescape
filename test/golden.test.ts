@@ -48,6 +48,15 @@ const extras: Record<string, SceneInput> = {
       { trees: { color: "#123", height: 80 }, anchors: [{ at: "60%", kind: "flat" }] },
     ],
   },
+  lakes: {
+    seed: "lakes",
+    sky: true,
+    layers: [
+      { profile: "peaks" },
+      { lakes: [{ at: "30%", width: 500, level: 30, ripples: 0 }] },
+      { trees: true, lakes: [{ at: "75%", width: "30%", reflection: 0.3, color: "#2b5d7a" }] },
+    ],
+  },
   "clouds-streaks": { seed: "streaks", palette: "desert", clouds: { style: "streaks", bands: 2, shade: 0, opacity: 0.6 }, layers: 1 },
 };
 

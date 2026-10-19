@@ -6,7 +6,7 @@
 import { buildProfile } from "../profile";
 import { placeTrees, treeHeightAt, treeKeyPoints, type Tree } from "../trees";
 import { resolveLength, type Size } from "../spec/length";
-import type { Anchor, Layer } from "../spec/types";
+import type { Anchor, Lake, Layer } from "../spec/types";
 
 export interface Vec {
   x: number;
@@ -24,6 +24,19 @@ export interface Outline {
   baseline: number;
   /** Where the polygon closes, below the bottom edge. */
   bottom: number;
+  /** Stretches of water on this layer within the element, left to right. */
+  water: WaterSpan[];
+}
+
+export interface WaterSpan {
+  /** Index into the layer's lakes. */
+  lake: number;
+  /** Which repeat of the layer it's in (0 for the first). */
+  copy: number;
+  x0: number;
+  x1: number;
+  /** y of the water surface. */
+  y: number;
 }
 
 export interface OutlineOptions {
@@ -50,17 +63,22 @@ export function buildOutline(layer: Layer, size: Size, { overscan = 0, tolerance
   };
   const pointed = layer.profile === "peaks";
   const anchors = layer.anchors.map((a) => anchorShape(a, size, period, profileAt, pointed));
+  const lakes = layer.lakes.map((l) => lakeShape(l, size, period, baseline));
+  // Anchors first, then lakes level what's under their water.
+  const adjust = (x: number, h: number) => {
+    for (const a of anchors) h = a(x, h, baseline);
+    for (const l of lakes) h = l.adjust(x, h);
+    return h;
+  };
+  const water = waterSpans(lakes, size, period);
 
   const bottom = size.height + Math.max(0, overscan);
   const last = Math.ceil((size.width + step) / step);
   if (layer.trees) {
-    const groundAt = (x: number) => {
-      let h = profileAt(x);
-      for (const a of anchors) h = a(x, h, baseline);
-      return h;
-    };
-    const { crest, ground } = withTrees(layer, size, step, last, groundAt, period, tolerance);
-    return { crest, ground, top: topOf(crest), baseline: size.height - baseline, bottom };
+    const groundAt = (x: number) => adjust(x, profileAt(x));
+    const dry = (x: number) => lakes.every((l) => !l.wet(x));
+    const { crest, ground } = withTrees(layer, size, step, last, groundAt, dry, period, tolerance);
+    return { crest, ground, top: topOf(crest), baseline: size.height - baseline, bottom, water };
   }
 
   // Samples sit on the profile's own grid (x = i × step), so a wider element only adds samples at the ends.
@@ -68,12 +86,71 @@ export function buildOutline(layer: Layer, size: Size, { overscan = 0, tolerance
   const points: Vec[] = [];
   for (let i = first; i <= last; i++) {
     const x = i * step;
-    let h = baseline + amplitude * values[mod(i, count)]!;
-    for (const a of anchors) h = a(x, h, baseline);
+    const h = adjust(x, baseline + amplitude * values[mod(i, count)]!);
     points.push({ x, y: size.height - h });
   }
   const crest = simplify(points, tolerance);
-  return { crest, top: topOf(crest), baseline: size.height - baseline, bottom };
+  return { crest, top: topOf(crest), baseline: size.height - baseline, bottom, water };
+}
+
+interface LakeShape {
+  center: number;
+  half: number;
+  /** Water surface height above the bottom. */
+  level: number;
+  adjust: (x: number, h: number) => number;
+  /** Within the lake or its banks: no trees here. */
+  wet: (x: number) => boolean;
+}
+
+/** The lake bed sits this far under the water, so the ground never peeks through. */
+const LAKE_BED = 3;
+/** Banks rise this far above the water at the shore. */
+const BANK = 3;
+
+/**
+ * A lake: the ground is held just under the water across its width, then rises to a small bank at
+ * each shore and eases back into the terrain.
+ */
+function lakeShape(lake: Lake, size: Size, period: number, baseline: number): LakeShape {
+  const center = resolveLength(lake.at, size.width);
+  const half = Math.min(period / 2 - 1, Math.max(1, resolveLength(lake.width, size.width) / 2));
+  const level = baseline + resolveLength(lake.level, size.height);
+  const bank = Math.min(Math.max(half * 0.3, 10), 80);
+  const distance = (x: number) => {
+    const d = mod(x - center, period);
+    return Math.min(d, period - d);
+  };
+  return {
+    center,
+    half,
+    level,
+    adjust(x, h) {
+      const d = distance(x);
+      if (d <= half) return level - LAKE_BED;
+      if (d >= half + bank) return h;
+      const t = (d - half) / bank;
+      const ease = t * t * (3 - 2 * t);
+      // From the bank's top at the shore to the terrain, whichever way the terrain lies.
+      return level + BANK + (h - level - BANK) * ease;
+    },
+    wet: (x) => distance(x) < half + bank * 0.5,
+  };
+}
+
+/** Every repeat of every lake that shows within the element. */
+function waterSpans(lakes: LakeShape[], size: Size, period: number): WaterSpan[] {
+  const spans: WaterSpan[] = [];
+  lakes.forEach((l, lake) => {
+    const start = Math.floor((-l.half - l.center) / period);
+    for (let copy = start; l.center + copy * period - l.half < size.width; copy++) {
+      const x0 = l.center + copy * period - l.half;
+      const x1 = l.center + copy * period + l.half;
+      if (x1 < 0) continue;
+      spans.push({ lake, copy, x0, x1, y: size.height - l.level });
+    }
+  });
+  return spans.sort((a, b) => a.x0 - b.x0);
 }
 
 function topOf(points: Vec[]): number {
@@ -89,7 +166,16 @@ const TREE_SUBSTEPS = 4;
  * The crest with trees merged on top: sampled every ~1px plus every tree's tips and corners, then
  * each tree raises the samples it covers to its own outline.
  */
-function withTrees(layer: Layer, size: Size, step: number, last: number, groundAt: (x: number) => number, period: number, tolerance: number) {
+function withTrees(
+  layer: Layer,
+  size: Size,
+  step: number,
+  last: number,
+  groundAt: (x: number) => number,
+  dry: (x: number) => boolean,
+  period: number,
+  tolerance: number,
+) {
   const trees = placeTrees({ trees: layer.trees!, height: resolveLength(layer.trees!.height, size.height), period });
   const x0 = -step, x1 = last * step;
   const placed: { tree: Tree; x: number; foot: number }[] = [];
@@ -99,6 +185,7 @@ function withTrees(layer: Layer, size: Size, step: number, last: number, groundA
       const x = tree.x + copy * period;
       const half = tree.width / 2;
       if (x + half < x0 || x - half > x1) continue;
+      if (!dry(x - half) || !dry(x) || !dry(x + half)) continue;
       // Not on cliffs: a tree there would hang in the air on its downhill side.
       if (Math.abs(groundAt(x + half) - groundAt(x - half)) > tree.width) continue;
       // Feet a little into the ground, so the slope under a tree never shows a gap.

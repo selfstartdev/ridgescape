@@ -5,6 +5,7 @@
  */
 import { cloudLayers } from "../clouds";
 import { mix } from "../color";
+import { waterShapes } from "../lakes";
 import { buildOutline } from "../outline";
 import { hashString } from "../random";
 import { skyLayers } from "../sky";
@@ -65,6 +66,10 @@ export function render(scene: SceneInput | Scene, { width, height, overscan = 0,
       layer.trees?.color && outline.ground
         ? [{ d: groundPath(outline.crest, outline.bottom, fmt), fill: layer.trees.color }, { d: groundPath(outline.ground, outline.bottom, fmt), fill }]
         : [{ d: groundPath(outline.crest, outline.bottom, fmt), fill }];
+    // Lakes reflect everything drawn so far, which is everything behind this layer.
+    for (const span of outline.water) {
+      shapes.push(...waterShapes(span, layer.lakes[span.lake]!, layers, outline.bottom, `${layer.seed}:lake:${span.lake}`, ctx));
+    }
     layers.push({ key: `ground-${index}`, kind: "ground", index, depth: layer.depth, shapes, top: ctx.round(outline.top) });
   });
   return { width, height, overscan: ctx.overscan, layers };
