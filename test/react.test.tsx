@@ -110,6 +110,19 @@ describe("<Ridgescape>", () => {
     expect(canvases[0]!.style.width).toBe("1200px");
   });
 
+  it("moves far layers as the page scrolls with parallax on", async () => {
+    vi.stubGlobal("innerHeight", 800);
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => (cb(0), 1));
+    const { container } = await hydrate({ scene: { layers: 2 }, parallax: { strength: 0.5 } });
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(
+      () => ({ width: 1200, height: 700, top: -200, bottom: 500, left: 0, right: 0, x: 0, y: 0, toJSON() {} }) as DOMRect,
+    );
+    window.dispatchEvent(new Event("scroll"));
+    const [far, near] = container.querySelectorAll<SVGElement>("svg");
+    expect(far!.style.transform).toBe("translate3d(0, 100px, 0)");
+    expect(near!.style.transform).toBe("");
+  });
+
   it("is shown straight away with reveal=none", () => {
     expect(renderToString(page({ scene: {}, reveal: "none" }))).not.toContain("opacity");
   });

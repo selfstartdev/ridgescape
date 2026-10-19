@@ -4,6 +4,7 @@ export { resolve, resolvePalette, ANCHOR_HEIGHTS, DEPTH_DEFAULTS, PROFILE_DEFAUL
 export { palettes, type PaletteName } from "./palettes";
 export { presets, type PresetName } from "./presets";
 export { drawLayer, drawToCanvas, type CanvasContext, type DrawOptions } from "./canvas";
+export { attachParallax, parallaxDelta, parallaxOffset, PARALLAX_DEFAULTS, type ParallaxOptions } from "./parallax";
 export { ridgescapeParentStyle } from "./parent";
 export type {
   Anchor,

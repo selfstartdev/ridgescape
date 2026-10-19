@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
-import { drawLayer, render, type RenderedLayer, type Scene, type SceneInput } from "ridgescape";
+import { attachParallax, drawLayer, render, type ParallaxOptions, type RenderedLayer, type Scene, type SceneInput } from "ridgescape";
 
 // Everything in the core is also available from "ridgescape/react", including ridgescapeParentStyle
 // (though server components should import that from "ridgescape"; see src/parent.ts).
@@ -12,6 +12,11 @@ export interface RidgescapeProps {
   scene: SceneInput | Scene;
   /** "svg" (default) renders on the server too; "canvas" draws in the browser. */
   renderer?: "svg" | "canvas";
+  /**
+   * Far layers lag behind as the page scrolls. true for the default strength (0.3), or
+   * `{ strength }` from 0 to 1. Off under prefers-reduced-motion, and with attach="fixed".
+   */
+  parallax?: boolean | ParallaxOptions;
   /**
    * "scroll" (default): the layer covers its parent and scrolls with the page.
    * "fixed": the layer is pinned to the viewport.
@@ -46,6 +51,7 @@ interface Size {
 export function Ridgescape({
   scene,
   renderer = "svg",
+  parallax = false,
   attach = "scroll",
   fullBleed = false,
   initialSize = DEFAULT_INITIAL_SIZE,
@@ -89,6 +95,15 @@ export function Ridgescape({
     () => render(scene, { width: size.width, height: size.height, idPrefix }),
     [sceneKey, size.width, size.height, idPrefix], // sceneKey stands in for scene
   );
+
+  const strength = typeof parallax === "object" ? parallax.strength : undefined;
+  const parallaxOn = parallax !== false && attach !== "fixed";
+  useEffect(() => {
+    const el = ref.current;
+    if (!parallaxOn || !el) return;
+    // Re-attached after every render, so new layer elements pick up their offsets straight away.
+    return attachParallax(el, { strength });
+  }, [parallaxOn, strength, rendered, renderer]);
 
   const hidden = reveal === "fade" && measured === null;
   const layerStyle: CSSProperties = {
