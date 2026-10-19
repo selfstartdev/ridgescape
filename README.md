@@ -78,9 +78,10 @@ layers: [
 | `color` | Instead of the palette and haze; any CSS colour. |
 | `mist` | 0–1: fade toward the haze colour in the valleys. |
 | `anchors` | Peaks, dips or flat stretches at chosen positions: `{ at, kind?, height?, width? }`. |
+| `trees` | A tree line along the crest: `true`, or `{ kind, height, density, cover, variation, color, seed }` (kinds: conifer, deciduous, mixed). |
 | `seed` | Instead of one derived from the scene's seed and the layer's index. |
 
-Eight presets are in `presets` (`sierra`, `meadow`, `misty`, `mesa`, `glacier`, `nightfall`, and `summer` and `starlight`, which draw their own sky); spread one and change what you like.
+Nine presets are in `presets` (`sierra`, `meadow`, `misty`, `mesa`, `glacier`, `nightfall`, `pinewood`, and `summer` and `starlight`, which draw their own sky); spread one and change what you like.
 
 ## Sky and clouds
 

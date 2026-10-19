@@ -1,9 +1,10 @@
 /**
  * Outlines: a layer's profile laid across the element at its real size, with
- * anchors blended in, simplified, and closed down past the bottom edge. One
- * closed polygon per layer, however wide the element.
+ * anchors blended in and trees merged on top, simplified, and closed down past
+ * the bottom edge. One closed polygon per layer, however wide the element.
  */
 import { buildProfile } from "../profile";
+import { placeTrees, treeHeightAt, treeKeyPoints, type Tree } from "../trees";
 import { resolveLength, type Size } from "../spec/length";
 import type { Anchor, Layer } from "../spec/types";
 
@@ -13,8 +14,10 @@ export interface Vec {
 }
 
 export interface Outline {
-  /** Crest points, left to right, in element coordinates (y down). */
+  /** Crest points, left to right, in element coordinates (y down), trees included. */
   crest: Vec[];
+  /** The crest without its trees, when the layer has any. */
+  ground?: Vec[];
   /** Highest point of the crest (smallest y). */
   top: number;
   /** y of the layer's baseline (its lowest valleys, before anchors). */
@@ -48,9 +51,20 @@ export function buildOutline(layer: Layer, size: Size, { overscan = 0, tolerance
   const pointed = layer.profile === "peaks";
   const anchors = layer.anchors.map((a) => anchorShape(a, size, period, profileAt, pointed));
 
+  const bottom = size.height + Math.max(0, overscan);
+  const last = Math.ceil((size.width + step) / step);
+  if (layer.trees) {
+    const groundAt = (x: number) => {
+      let h = profileAt(x);
+      for (const a of anchors) h = a(x, h, baseline);
+      return h;
+    };
+    const { crest, ground } = withTrees(layer, size, step, last, groundAt, period, tolerance);
+    return { crest, ground, top: topOf(crest), baseline: size.height - baseline, bottom };
+  }
+
   // Samples sit on the profile's own grid (x = i × step), so a wider element only adds samples at the ends.
   const first = -1;
-  const last = Math.ceil((size.width + step) / step);
   const points: Vec[] = [];
   for (let i = first; i <= last; i++) {
     const x = i * step;
@@ -59,9 +73,66 @@ export function buildOutline(layer: Layer, size: Size, { overscan = 0, tolerance
     points.push({ x, y: size.height - h });
   }
   const crest = simplify(points, tolerance);
+  return { crest, top: topOf(crest), baseline: size.height - baseline, bottom };
+}
+
+function topOf(points: Vec[]): number {
   let top = Infinity;
-  for (const p of crest) if (p.y < top) top = p.y;
-  return { crest, top, baseline: size.height - baseline, bottom: size.height + Math.max(0, overscan) };
+  for (const p of points) if (p.y < top) top = p.y;
+  return top;
+}
+
+/** Samples per profile step on layers with trees: about 1px, so narrow trees keep their shape. */
+const TREE_SUBSTEPS = 4;
+
+/**
+ * The crest with trees merged on top: sampled every ~1px plus every tree's tips and corners, then
+ * each tree raises the samples it covers to its own outline.
+ */
+function withTrees(layer: Layer, size: Size, step: number, last: number, groundAt: (x: number) => number, period: number, tolerance: number) {
+  const trees = placeTrees({ trees: layer.trees!, height: resolveLength(layer.trees!.height, size.height), period });
+  const x0 = -step, x1 = last * step;
+  const placed: { tree: Tree; x: number; foot: number }[] = [];
+  const widest = trees.reduce((m, t) => Math.max(m, t.width), 0);
+  for (let copy = Math.floor((x0 - widest) / period); copy * period < x1 + widest; copy++) {
+    for (const tree of trees) {
+      const x = tree.x + copy * period;
+      const half = tree.width / 2;
+      if (x + half < x0 || x - half > x1) continue;
+      // Not on cliffs: a tree there would hang in the air on its downhill side.
+      if (Math.abs(groundAt(x + half) - groundAt(x - half)) > tree.width) continue;
+      // Feet a little into the ground, so the slope under a tree never shows a gap.
+      placed.push({ tree, x, foot: groundAt(x) - 0.08 * tree.height });
+    }
+  }
+
+  const xs: number[] = [];
+  for (let i = -TREE_SUBSTEPS; i <= last * TREE_SUBSTEPS; i++) xs.push((i / TREE_SUBSTEPS) * step);
+  for (const p of placed) for (const dx of treeKeyPoints(p.tree)) if (p.x + dx > x0 && p.x + dx < x1) xs.push(p.x + dx);
+  xs.sort((a, b) => a - b);
+
+  const ground = xs.map(groundAt);
+  const heights = ground.slice();
+  for (const p of placed) {
+    const half = p.tree.width / 2;
+    for (let j = lowerBound(xs, p.x - half); j < xs.length && xs[j]! <= p.x + half; j++) {
+      const h = p.foot + treeHeightAt(p.tree, xs[j]! - p.x);
+      if (h > heights[j]!) heights[j] = h;
+    }
+  }
+  const toPoints = (hs: number[]) => simplify(xs.map((x, j) => ({ x, y: size.height - hs[j]! })), tolerance);
+  return { crest: toPoints(heights), ground: toPoints(ground) };
+}
+
+/** First index with xs[i] >= x. */
+function lowerBound(xs: number[], x: number): number {
+  let lo = 0, hi = xs.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid]! < x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
 }
 
 /**

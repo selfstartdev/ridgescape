@@ -29,6 +29,9 @@ import type {
   StarsInput,
   Sun,
   SunInput,
+  TreeKind,
+  Trees,
+  TreesInput,
 } from "./types";
 import { layerColor, mix } from "../color";
 
@@ -82,6 +85,17 @@ export const CLOUD_DEFAULTS = {
   opacity: 0.92,
 };
 
+export const TREE_DEFAULTS = {
+  kind: "conifer" as TreeKind,
+  density: 0.6,
+  cover: 0.85,
+  variation: 0.3,
+  /** Height in px by depth: 44 at the front, 12 at the horizon. */
+  height: (d: number) => Math.round(44 * (1 - 0.72 * d)),
+};
+
+const TREE_KINDS: readonly TreeKind[] = ["conifer", "deciduous", "mixed"];
+
 /** Anchor heights by kind, as fractions of the layer's amplitude. */
 export const ANCHOR_HEIGHTS: Record<AnchorKind, number> = { peak: 1.15, dip: 0, flat: 0.2 };
 
@@ -121,6 +135,7 @@ function resolveLayer(input: LayerInput, ctx: LayerContext): Layer {
   const depth = unit(input.depth ?? ctx.depth, "depth");
   const p = PROFILE_DEFAULTS[profile];
   const amplitude = length(input.amplitude ?? scaleLength(ctx.height, DEPTH_DEFAULTS.amplitude(depth)), "amplitude");
+  const seed = String(input.seed ?? `${ctx.seed}:${ctx.index}`);
   return {
     profile,
     depth,
@@ -132,7 +147,22 @@ function resolveLayer(input: LayerInput, ctx: LayerContext): Layer {
     color: input.color ?? layerColor(ctx.palette, ctx.haze, depth),
     mist: unit(input.mist ?? ctx.palette.mist, "mist"),
     anchors: (input.anchors ?? []).map((a) => resolveAnchor(a, amplitude)),
-    seed: String(input.seed ?? `${ctx.seed}:${ctx.index}`),
+    trees: input.trees ? resolveTrees(input.trees === true ? {} : input.trees, depth, seed) : null,
+    seed,
+  };
+}
+
+function resolveTrees(input: TreesInput | Trees, depth: number, layerSeed: string): Trees {
+  const kind = input.kind ?? TREE_DEFAULTS.kind;
+  if (!TREE_KINDS.includes(kind)) throw new TypeError(`ridgescape: unknown tree kind ${JSON.stringify(kind)}; expected ${TREE_KINDS.join(", ")}`);
+  return {
+    kind,
+    density: unit(input.density ?? TREE_DEFAULTS.density, "trees.density"),
+    height: length(input.height ?? TREE_DEFAULTS.height(depth), "trees.height"),
+    cover: unit(input.cover ?? TREE_DEFAULTS.cover, "trees.cover"),
+    variation: unit(input.variation ?? TREE_DEFAULTS.variation, "trees.variation"),
+    color: input.color ?? null,
+    seed: String(input.seed ?? `${layerSeed}:trees`),
   };
 }
 

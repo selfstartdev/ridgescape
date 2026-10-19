@@ -27,6 +27,36 @@ export interface Anchor {
   width: Length;
 }
 
+export type TreeKind = "conifer" | "deciduous" | "mixed";
+
+/** A tree line along a layer's crest. */
+export interface TreesInput {
+  /** Default "conifer". */
+  kind?: TreeKind;
+  /** 0–1: sparse to a solid forest. Default 0.6. */
+  density?: number;
+  /** Typical tree height: px, or % of the element's height. Default by depth: 44px at the front, smaller further back. */
+  height?: Length;
+  /** 0–1: how much of the ridge is forest rather than clearing. Default 0.85. */
+  cover?: number;
+  /** 0–1: how much tree heights vary. Default 0.3. */
+  variation?: number;
+  /** Default: the layer's colour, so trees and ground are one silhouette. */
+  color?: string;
+  seed?: KeyPart;
+}
+
+export interface Trees {
+  kind: TreeKind;
+  density: number;
+  height: Length;
+  cover: number;
+  variation: number;
+  /** null: the layer's colour. */
+  color: string | null;
+  seed: string;
+}
+
 export interface LayerInput {
   /** Default "rolling". */
   profile?: ProfileKind;
@@ -47,6 +77,8 @@ export interface LayerInput {
   /** 0–1: how far the layer fades into the haze colour toward its valleys. */
   mist?: number;
   anchors?: AnchorInput[];
+  /** A tree line along the crest: true for the defaults. */
+  trees?: boolean | TreesInput | null;
   /** Default: derived from the scene's seed and the layer's index. */
   seed?: KeyPart;
 }
@@ -63,6 +95,7 @@ export interface Layer {
   color: string;
   mist: number;
   anchors: Anchor[];
+  trees: Trees | null;
   seed: string;
 }
 

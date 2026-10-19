@@ -60,8 +60,12 @@ export function render(scene: SceneInput | Scene, { width, height, overscan = 0,
       };
       fill = { type: "linear", id: ctx.id(content), x1: 0, x2: 0, ...content };
     }
-    const ground: RenderedShape = { d: groundPath(outline.crest, outline.bottom, fmt), fill };
-    layers.push({ key: `ground-${index}`, kind: "ground", index, depth: layer.depth, shapes: [ground], top: ctx.round(outline.top) });
+    // Trees in their own colour: the whole silhouette in that colour, then the bare ground over it.
+    const shapes: RenderedShape[] =
+      layer.trees?.color && outline.ground
+        ? [{ d: groundPath(outline.crest, outline.bottom, fmt), fill: layer.trees.color }, { d: groundPath(outline.ground, outline.bottom, fmt), fill }]
+        : [{ d: groundPath(outline.crest, outline.bottom, fmt), fill }];
+    layers.push({ key: `ground-${index}`, kind: "ground", index, depth: layer.depth, shapes, top: ctx.round(outline.top) });
   });
   return { width, height, overscan: ctx.overscan, layers };
 }

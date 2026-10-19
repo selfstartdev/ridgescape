@@ -39,6 +39,15 @@ const extras: Record<string, SceneInput> = {
   sky: { seed: "sky", palette: "dawn", sky: { sun: { at: ["30%", "35%"], radius: 70, glow: 0.8 }, stars: { density: 0.5, area: "30%" } }, layers: 2 },
   moon: { seed: "moon", palette: "night", sky: { moon: { crescent: 0.7, at: [200, 150] }, gradient: false }, layers: 1 },
   "clouds-puffy": { seed: "puffy", sky: true, clouds: { bands: 3, cover: 0.6, size: 300 }, layers: 1 },
+  trees: {
+    seed: "trees",
+    layers: [
+      { trees: { kind: "conifer", density: 0.3 } },
+      { trees: { kind: "deciduous", height: "6%" } },
+      { trees: { kind: "mixed", density: 1, cover: 0.5, variation: 0.6 } },
+      { trees: { color: "#123", height: 80 }, anchors: [{ at: "60%", kind: "flat" }] },
+    ],
+  },
   "clouds-streaks": { seed: "streaks", palette: "desert", clouds: { style: "streaks", bands: 2, shade: 0, opacity: 0.6 }, layers: 1 },
 };
 
