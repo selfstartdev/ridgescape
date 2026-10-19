@@ -36,6 +36,10 @@ const extras: Record<string, SceneInput> = {
   px: { seed: "px", height: 420, layers: [{ baseline: 180, amplitude: 160, period: 1200 }, { mist: 0.5 }] },
   colours: { seed: "colours", palette: { near: "rgb(20 40 60)", far: "hsl(200 40% 70%)", haze: "white", mist: 0.3 }, layers: [{ color: "#a0c" }, {}, {}] },
   overscan: { seed: "overscan", layers: 2 },
+  sky: { seed: "sky", palette: "dawn", sky: { sun: { at: ["30%", "35%"], radius: 70, glow: 0.8 }, stars: { density: 0.5, area: "30%" } }, layers: 2 },
+  moon: { seed: "moon", palette: "night", sky: { moon: { crescent: 0.7, at: [200, 150] }, gradient: false }, layers: 1 },
+  "clouds-puffy": { seed: "puffy", sky: true, clouds: { bands: 3, cover: 0.6, size: 300 }, layers: 1 },
+  "clouds-streaks": { seed: "streaks", palette: "desert", clouds: { style: "streaks", bands: 2, shade: 0, opacity: 0.6 }, layers: 1 },
 };
 
 describe("golden extras", () => {

@@ -80,7 +80,18 @@ layers: [
 | `anchors` | Peaks, dips or flat stretches at chosen positions: `{ at, kind?, height?, width? }`. |
 | `seed` | Instead of one derived from the scene's seed and the layer's index. |
 
-Six presets (`sierra`, `meadow`, `misty`, `mesa`, `glacier`, `nightfall`) are in `presets`; spread one and change what you like.
+Eight presets are in `presets` (`sierra`, `meadow`, `misty`, `mesa`, `glacier`, `nightfall`, and `summer` and `starlight`, which draw their own sky); spread one and change what you like.
+
+## Sky and clouds
+
+```ts
+{
+  sky: { sun: { at: ["72%", "28%"], radius: 56, glow: 0.6 }, stars: true },   // or moon: { crescent: 0.5 }; sky: true for just the gradient
+  clouds: { style: "puffy", bands: 2, cover: 0.4, top: "14%", bottom: "40%", size: 240 },   // or style: "streaks"
+}
+```
+
+The sky is the palette's gradient (or your own, or none), with an optional sun or moon with a soft glow, and stars. Clouds come in rows at different depths and repeat horizontally like the ground. With parallax, the gradient stays put and everything else drifts by depth.
 
 ## SVG and canvas, without React
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
-import { attachParallax, drawLayer, render, type ParallaxOptions, type RenderedLayer, type Scene, type SceneInput } from "ridgescape";
+import { attachParallax, defsMarkup, drawLayer, layerMarkup, render, type ParallaxOptions, type RenderedLayer, type Scene, type SceneInput } from "ridgescape";
 
 // Everything in the core is also available from "ridgescape/react", including ridgescapeParentStyle
 // (though server components should import that from "ridgescape"; see src/parent.ts).
@@ -127,9 +127,9 @@ export function Ridgescape({
     <div ref={ref} aria-hidden="true" className={className} style={layerStyle} data-ridgescape="">
       {rendered.layers.map((layer) =>
         renderer === "canvas" ? (
-          <CanvasLayer key={layer.index} layer={layer} width={width} height={height + overscan} />
+          <CanvasLayer key={layer.key} layer={layer} width={width} height={height + overscan} idPrefix={idPrefix} />
         ) : (
-          <SvgLayer key={layer.index} layer={layer} width={width} height={height + overscan} />
+          <SvgLayer key={layer.key} layer={layer} width={width} height={height + overscan} idPrefix={idPrefix} />
         ),
       )}
     </div>
@@ -140,13 +140,15 @@ interface LayerProps {
   layer: RenderedLayer;
   width: number;
   height: number;
+  idPrefix: string;
 }
 
 /** Every layer is its own element, so parallax can move it without redrawing. */
 const layerElementStyle: CSSProperties = { position: "absolute", top: 0, left: 0, display: "block" };
 
-function SvgLayer({ layer, width, height }: LayerProps) {
-  const fill = layer.fill;
+function SvgLayer({ layer, width, height, idPrefix }: LayerProps) {
+  // The same markup toSvg() writes, so the two can't drift apart.
+  const markup = defsMarkup([layer], idPrefix) + layerMarkup(layer, idPrefix);
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -155,19 +157,10 @@ function SvgLayer({ layer, width, height }: LayerProps) {
       viewBox={`0 0 ${width} ${height}`}
       focusable="false"
       data-depth={layer.depth}
+      data-kind={layer.kind}
       style={layerElementStyle}
-    >
-      {typeof fill !== "string" && (
-        <defs>
-          <linearGradient id={fill.id} gradientUnits="userSpaceOnUse" x1={0} y1={fill.y1} x2={0} y2={fill.y2}>
-            {fill.stops.map((s) => (
-              <stop key={s.offset} offset={s.offset} stopColor={s.color} />
-            ))}
-          </linearGradient>
-        </defs>
-      )}
-      <path d={layer.d} fill={typeof fill === "string" ? fill : `url(#${fill.id})`} />
-    </svg>
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
   );
 }
 
@@ -192,6 +185,7 @@ function CanvasLayer({ layer, width, height }: LayerProps) {
       width={Math.round(width * ratio)}
       height={Math.round(height * ratio)}
       data-depth={layer.depth}
+      data-kind={layer.kind}
       style={{ ...layerElementStyle, width, height }}
     />
   );

@@ -5,7 +5,7 @@ describe("render", () => {
   it("draws one closed path per layer, back to front", () => {
     const r = render({ layers: 3 }, { width: 600, height: 300 });
     expect(r.layers.map((l) => l.depth)).toEqual([1, 0.5, 0]);
-    for (const l of r.layers) expect(l.d).toMatch(/^M[-\d.]+ [-\d.]+(L[-\d.]+ [-\d.]+)+Z$/);
+    for (const l of r.layers) expect(l.shapes[0]!.d).toMatch(/^M[-\d.]+ [-\d.]+(L[-\d.]+ [-\d.]+)+Z$/);
   });
 
   it("is byte-stable", () => {

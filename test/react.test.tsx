@@ -41,7 +41,11 @@ beforeEach(() => {
       scale() {},
       save() {},
       restore() {},
+      globalAlpha: 1,
+      clip() {},
+      transform() {},
       createLinearGradient: () => ({ addColorStop() {} }),
+      createRadialGradient: () => ({ addColorStop() {} }),
       fill(path: FakePath2D) {
         fills.push(path.d);
       },
@@ -121,6 +125,18 @@ describe("<Ridgescape>", () => {
     const [far, near] = container.querySelectorAll<SVGElement>("svg");
     expect(far!.style.transform).toBe("translate3d(0, 100px, 0)");
     expect(near!.style.transform).toBe("");
+  });
+
+  it("draws a sky, sun and clouds with either renderer", async () => {
+    const svg = await hydrate({ scene: presets.summer });
+    expect(svg.errors).toEqual([]);
+    const kinds = [...svg.container.querySelectorAll("svg")].map((e) => e.getAttribute("data-kind"));
+    expect(kinds.slice(0, 4)).toEqual(["sky", "sun", "clouds", "clouds"]);
+    expect(svg.container.querySelector("radialGradient")).not.toBeNull();
+    document.body.innerHTML = "";
+    const canvas = await hydrate({ scene: presets.summer, renderer: "canvas" });
+    expect(canvas.errors).toEqual([]);
+    expect(canvas.container.querySelectorAll("canvas").length).toBe(kinds.length);
   });
 
   it("is shown straight away with reveal=none", () => {

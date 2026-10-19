@@ -5,8 +5,32 @@
  */
 import { palettes, type PaletteName } from "../palettes";
 import { isLength, scaleLength } from "./length";
-import type { Anchor, AnchorInput, AnchorKind, Haze, Layer, LayerInput, Palette, PaletteInput, ProfileKind, Scene, SceneInput } from "./types";
-import { layerColor } from "../color";
+import type {
+  Anchor,
+  AnchorInput,
+  AnchorKind,
+  CloudsInput,
+  Clouds,
+  CloudStyle,
+  Haze,
+  Layer,
+  LayerInput,
+  Moon,
+  MoonInput,
+  Palette,
+  PaletteInput,
+  Point,
+  ProfileKind,
+  Scene,
+  SceneInput,
+  Sky,
+  SkyInput,
+  Stars,
+  StarsInput,
+  Sun,
+  SunInput,
+} from "./types";
+import { layerColor, mix } from "../color";
 
 export const SCENE_DEFAULTS = {
   seed: "ridgescape",
@@ -41,6 +65,23 @@ export const DEPTH_DEFAULTS = {
   roughness: (d: number) => 1 - 0.3 * d,
 };
 
+export const SKY_DEFAULTS = {
+  sun: { at: ["72%", "28%"] as Point, radius: 56, glow: 0.6 },
+  moon: { at: ["24%", "22%"] as Point, radius: 36, glow: 0.35, crescent: 0 },
+  stars: { density: 1, size: 1, area: "70%" as const, color: "#ffffff" },
+};
+
+export const CLOUD_DEFAULTS = {
+  style: "puffy" as CloudStyle,
+  bands: 2,
+  cover: 0.4,
+  top: "14%" as const,
+  bottom: "40%" as const,
+  size: 240,
+  shade: 0.2,
+  opacity: 0.92,
+};
+
 /** Anchor heights by kind, as fractions of the layer's amplitude. */
 export const ANCHOR_HEIGHTS: Record<AnchorKind, number> = { peak: 1.15, dip: 0, flat: 0.2 };
 
@@ -59,7 +100,9 @@ export function resolve(input: SceneInput | Scene = {}): Scene {
   const list: LayerInput[] = typeof raw === "number" ? Array.from({ length: count(raw) }, () => ({})) : raw;
   const n = list.length;
   const layers = list.map((layer, i) => resolveLayer(layer, { index: i, depth: n > 1 ? (n - 1 - i) / (n - 1) : 0, seed, palette, haze, height }));
-  return { seed, palette, height, haze, layers };
+  const sky = input.sky ? resolveSky(input.sky === true ? {} : input.sky, palette, seed) : null;
+  const clouds = input.clouds ? resolveClouds(input.clouds === true ? {} : input.clouds, palette, seed) : null;
+  return { seed, palette, height, haze, sky, clouds, layers };
 }
 
 interface LayerContext {
@@ -104,10 +147,68 @@ function resolveAnchor(input: AnchorInput, amplitude: Layer["amplitude"]): Ancho
   };
 }
 
+function resolveSky(input: SkyInput | Sky, palette: Palette, seed: string): Sky {
+  const gradient = input.gradient === false || input.gradient === null ? null : (input.gradient ?? palette.sky);
+  const disc = <T extends SunInput>(value: boolean | T | null | undefined, defaults: { at: Point; radius: number; glow: number }, name: string): Sun | null => {
+    if (!value) return null;
+    const v: SunInput = value === true ? {} : value;
+    const at = v.at ?? defaults.at;
+    if (!Array.isArray(at) || at.length !== 2 || !isLength(at[0]) || !isLength(at[1])) throw new TypeError(`ridgescape: ${name}.at must be [x, y] in px or percentages, got ${JSON.stringify(at)}`);
+    return { at: [at[0], at[1]], radius: positive(v.radius ?? defaults.radius, `${name}.radius`), color: v.color ?? palette.sun, glow: unit(v.glow ?? defaults.glow, `${name}.glow`) };
+  };
+  const sun = disc(input.sun, SKY_DEFAULTS.sun, "sun");
+  const moonDisc = disc(input.moon, SKY_DEFAULTS.moon, "moon");
+  const moonInput: MoonInput = typeof input.moon === "object" && input.moon ? input.moon : {};
+  const moon: Moon | null = moonDisc && { ...moonDisc, crescent: unit(moonInput.crescent ?? SKY_DEFAULTS.moon.crescent, "moon.crescent") };
+  let stars: Stars | null = null;
+  if (input.stars) {
+    const s: StarsInput = input.stars === true ? {} : input.stars;
+    stars = {
+      density: positive(s.density ?? SKY_DEFAULTS.stars.density, "stars.density"),
+      size: positive(s.size ?? SKY_DEFAULTS.stars.size, "stars.size"),
+      area: length(s.area ?? SKY_DEFAULTS.stars.area, "stars.area"),
+      color: s.color ?? SKY_DEFAULTS.stars.color,
+      seed: String(s.seed ?? `${seed}:stars`),
+    };
+  }
+  return { gradient: gradient ? [gradient[0], gradient[1]] : null, sun, moon, stars };
+}
+
+const CLOUD_STYLES: readonly CloudStyle[] = ["puffy", "streaks"];
+
+function resolveClouds(input: CloudsInput | Clouds, palette: Palette, seed: string): Clouds {
+  const style = input.style ?? CLOUD_DEFAULTS.style;
+  if (!CLOUD_STYLES.includes(style)) throw new TypeError(`ridgescape: unknown cloud style ${JSON.stringify(style)}; expected ${CLOUD_STYLES.join(", ")}`);
+  const bands = input.bands ?? CLOUD_DEFAULTS.bands;
+  if (!Number.isInteger(bands) || bands < 1 || bands > 8) throw new RangeError(`ridgescape: clouds.bands must be a whole number from 1 to 8, got ${bands}`);
+  return {
+    style,
+    bands,
+    cover: unit(input.cover ?? CLOUD_DEFAULTS.cover, "clouds.cover"),
+    top: length(input.top ?? CLOUD_DEFAULTS.top, "clouds.top"),
+    bottom: length(input.bottom ?? CLOUD_DEFAULTS.bottom, "clouds.bottom"),
+    size: positive(input.size ?? CLOUD_DEFAULTS.size, "clouds.size"),
+    color: input.color ?? palette.cloud,
+    shade: unit(input.shade ?? CLOUD_DEFAULTS.shade, "clouds.shade"),
+    opacity: unit(input.opacity ?? CLOUD_DEFAULTS.opacity, "clouds.opacity"),
+    seed: String(input.seed ?? `${seed}:clouds`),
+  };
+}
+
 export function resolvePalette(input: PaletteName | PaletteInput): Palette {
   const p: PaletteInput | undefined = typeof input === "string" ? palettes[input] : input;
   if (!p) throw new TypeError(`ridgescape: unknown palette ${JSON.stringify(input)}; expected ${Object.keys(palettes).join(", ")} or your own colours`);
-  return { near: p.near, far: p.far, haze: p.haze ?? p.far, sky: p.sky ?? [p.haze ?? p.far, p.haze ?? p.far], mist: p.mist ?? 0 };
+  const haze = p.haze ?? p.far;
+  return { near: p.near, far: p.far, haze, sky: p.sky ?? [haze, haze], mist: p.mist ?? 0, sun: p.sun ?? lighten(haze, 0.5), cloud: p.cloud ?? lighten(haze, 0.6) };
+}
+
+/** The haze toward white, or white if the haze can't be mixed (a CSS variable, say). */
+function lighten(color: string, t: number): string {
+  try {
+    return mix(color, "#ffffff", t);
+  } catch {
+    return "#ffffff";
+  }
 }
 
 function count(n: number): number {

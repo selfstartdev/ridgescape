@@ -77,6 +77,10 @@ export interface PaletteInput {
   sky?: [string, string];
   /** Default mist for every layer. */
   mist?: number;
+  /** Sun or moon colour. Default: the haze, lightened. */
+  sun?: string;
+  /** Cloud colour. Default: the haze, lightened. */
+  cloud?: string;
 }
 
 export interface Palette {
@@ -85,6 +89,109 @@ export interface Palette {
   haze: string;
   sky: [string, string];
   mist: number;
+  sun: string;
+  cloud: string;
+}
+
+/** A position: x (px, or % of the element's width) from the left, y (px, or % of its height) from the top. */
+export type Point = [x: Length, y: Length];
+
+export interface SunInput {
+  /** Centre of the disc. */
+  at?: Point;
+  /** px. */
+  radius?: number;
+  /** Default: the palette's sun colour. */
+  color?: string;
+  /** 0–1: size and strength of the soft glow around it. */
+  glow?: number;
+}
+
+export interface Sun {
+  at: Point;
+  radius: number;
+  color: string;
+  glow: number;
+}
+
+export interface MoonInput extends SunInput {
+  /** 0 (full) to 1 (a thin sliver). */
+  crescent?: number;
+}
+
+export interface Moon extends Sun {
+  crescent: number;
+}
+
+export interface StarsInput {
+  /** Stars per 100 × 100 px. Default 1. */
+  density?: number;
+  /** Size multiplier. Default 1. */
+  size?: number;
+  /** How far down from the top stars reach. Default "70%". */
+  area?: Length;
+  /** Default "#ffffff". */
+  color?: string;
+  seed?: KeyPart;
+}
+
+export interface Stars {
+  density: number;
+  size: number;
+  area: Length;
+  color: string;
+  seed: string;
+}
+
+export interface SkyInput {
+  /** Top and bottom colours. Default: the palette's sky; false for none (stars, sun and moon only). */
+  gradient?: [string, string] | false | null;
+  sun?: boolean | SunInput | null;
+  moon?: boolean | MoonInput | null;
+  stars?: boolean | StarsInput | null;
+}
+
+export interface Sky {
+  gradient: [string, string] | null;
+  sun: Sun | null;
+  moon: Moon | null;
+  stars: Stars | null;
+}
+
+export type CloudStyle = "puffy" | "streaks";
+
+export interface CloudsInput {
+  /** "puffy" (default): flat-bottomed heaps. "streaks": long thin wisps. */
+  style?: CloudStyle;
+  /** Rows of clouds at different depths. Default 2. */
+  bands?: number;
+  /** 0–1: how much of each row is cloud. Default 0.4. */
+  cover?: number;
+  /** Bases of the highest and lowest rows, from the top. Default "14%" and "40%". */
+  top?: Length;
+  bottom?: Length;
+  /** Typical cloud width in the front row, px. Default 240. */
+  size?: number;
+  /** Default: the palette's cloud colour. */
+  color?: string;
+  /** 0–1: how much darker the undersides are. Default 0.2. */
+  shade?: number;
+  /** Default 0.92. */
+  opacity?: number;
+  seed?: KeyPart;
+}
+
+export interface Clouds {
+  style: CloudStyle;
+  bands: number;
+  cover: number;
+  top: Length;
+  bottom: Length;
+  size: number;
+  color: string;
+  shade: number;
+  opacity: number;
+  seed: string;
 }
 
 export interface HazeInput {
@@ -112,6 +219,9 @@ export interface SceneInput {
   /** Height of the landscape band, which sets the default baselines and amplitudes. Default "45%". */
   height?: Length;
   haze?: HazeInput;
+  /** A sky behind everything: gradient, sun or moon, stars. Default none (the element's background shows). */
+  sky?: boolean | SkyInput | null;
+  clouds?: boolean | CloudsInput | null;
 }
 
 /** A scene with every default filled in: plain, JSON-serialisable data. */
@@ -120,6 +230,8 @@ export interface Scene {
   palette: Palette;
   height: Length;
   haze: Haze;
+  sky: Sky | null;
+  clouds: Clouds | null;
   /** Back to front, in drawing order. */
   layers: Layer[];
 }

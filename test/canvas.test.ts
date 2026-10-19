@@ -10,6 +10,9 @@ function fakeContext() {
   const ctx = {
     canvas: { width: 1200, height: 600 },
     fillStyle: "" as unknown,
+    globalAlpha: 1,
+    clip: () => calls.push("clip"),
+    transform: () => calls.push("transform"),
     save: () => calls.push("save"),
     restore: () => calls.push("restore"),
     setTransform: () => calls.push("reset"),
@@ -35,7 +38,8 @@ describe("drawToCanvas", () => {
     const { ctx, calls } = fakeContext();
     drawToCanvas(ctx, rendered, { pixelRatio: 2 });
     expect(calls.slice(0, 4)).toEqual(["save", "reset", "clear 1200×600", "scale 2"]);
-    expect(calls.slice(4, 7)).toEqual(rendered.layers.map((l) => `fill ${l.fill} ${l.d.length}`));
+    // Each shape is drawn between its own save and restore.
+    expect(calls.slice(4).filter((c) => c.startsWith("fill"))).toEqual(rendered.layers.map((l) => `fill ${l.shapes[0]!.fill} ${l.shapes[0]!.d.length}`));
     expect(calls[calls.length - 1]).toBe("restore");
   });
 
@@ -44,7 +48,7 @@ describe("drawToCanvas", () => {
     const rendered = render({ palette: "fog", layers: 1 }, { width: 600, height: 300 });
     const { ctx, calls } = fakeContext();
     drawToCanvas(ctx, rendered, { clear: false });
-    expect(calls).toContain(`fill gradient ${rendered.layers[0]!.d.length}`);
+    expect(calls).toContain(`fill gradient ${rendered.layers[0]!.shapes[0]!.d.length}`);
     expect(calls.some((c) => c.startsWith("clear"))).toBe(false);
   });
 });
