@@ -30,6 +30,8 @@ import type {
   Sun,
   SunInput,
   TreeKind,
+  TreeKindInput,
+  TreeShape,
   Trees,
   TreesInput,
   Lake,
@@ -96,7 +98,14 @@ export const TREE_DEFAULTS = {
   height: (d: number) => Math.round(44 * (1 - 0.72 * d)),
 };
 
-const TREE_KINDS: readonly TreeKind[] = ["conifer", "deciduous", "mixed"];
+/** What each group expands to: mostly spruce and fir, or maple and oak, with a few of the rest. */
+export const TREE_GROUPS: Record<TreeKind, Partial<Record<TreeShape, number>>> = {
+  conifer: { spruce: 0.4, fir: 0.32, pine: 0.16, cypress: 0.12 },
+  deciduous: { maple: 0.4, oak: 0.38, poplar: 0.22 },
+  mixed: { spruce: 0.2, fir: 0.16, pine: 0.08, cypress: 0.06, maple: 0.2, oak: 0.19, poplar: 0.11 },
+};
+
+export const TREE_SHAPES: readonly TreeShape[] = ["spruce", "fir", "pine", "cypress", "maple", "oak", "poplar"];
 
 export const LAKE_DEFAULTS = { width: "30%" as const, level: 0.12, reflection: 0.6, ripples: 0.5 };
 
@@ -179,10 +188,8 @@ function waterColor(sky: string, land: string): string {
 }
 
 function resolveTrees(input: TreesInput | Trees, depth: number, layerSeed: string): Trees {
-  const kind = input.kind ?? TREE_DEFAULTS.kind;
-  if (!TREE_KINDS.includes(kind)) throw new TypeError(`ridgescape: unknown tree kind ${JSON.stringify(kind)}; expected ${TREE_KINDS.join(", ")}`);
   return {
-    kind,
+    kind: resolveTreeKind(input.kind ?? TREE_DEFAULTS.kind),
     density: unit(input.density ?? TREE_DEFAULTS.density, "trees.density"),
     height: length(input.height ?? TREE_DEFAULTS.height(depth), "trees.height"),
     cover: unit(input.cover ?? TREE_DEFAULTS.cover, "trees.cover"),
@@ -190,6 +197,35 @@ function resolveTrees(input: TreesInput | Trees, depth: number, layerSeed: strin
     color: input.color ?? null,
     seed: String(input.seed ?? `${layerSeed}:trees`),
   };
+}
+
+/** A tree kind as shares of each shape, in a fixed order, summing to 1. */
+function resolveTreeKind(input: TreeKindInput): Trees["kind"] {
+  const fail = (kind: unknown): never => {
+    throw new TypeError(`ridgescape: unknown tree kind ${JSON.stringify(kind)}; expected one of ${[...Object.keys(TREE_GROUPS), ...TREE_SHAPES].join(", ")}`);
+  };
+  const weights: Partial<Record<TreeShape, number>> = {};
+  const add = (name: string, weight: number) => {
+    if (name in TREE_GROUPS) {
+      for (const [shape, w] of Object.entries(TREE_GROUPS[name as TreeKind])) weights[shape as TreeShape] = (weights[shape as TreeShape] ?? 0) + w * weight;
+    } else if (TREE_SHAPES.includes(name as TreeShape)) {
+      weights[name as TreeShape] = (weights[name as TreeShape] ?? 0) + weight;
+    } else fail(name);
+  };
+  if (typeof input === "string") add(input, 1);
+  else if (Array.isArray(input)) for (const name of input as readonly string[]) add(name, 1);
+  else if (input && typeof input === "object") {
+    for (const [name, w] of Object.entries(input)) {
+      if (!TREE_SHAPES.includes(name as TreeShape)) fail(name);
+      if (typeof w !== "number" || !(w >= 0) || !Number.isFinite(w)) throw new TypeError(`ridgescape: trees.kind.${name} must be a number ≥ 0`);
+      add(name, w);
+    }
+  } else fail(input);
+  const total = Object.values(weights).reduce((t: number, w) => t + w!, 0);
+  if (!(total > 0)) fail(input);
+  const out: Partial<Record<TreeShape, number>> = {};
+  for (const shape of TREE_SHAPES) if (weights[shape]) out[shape] = Number((weights[shape]! / total).toFixed(6));
+  return out;
 }
 
 function resolveAnchor(input: AnchorInput, amplitude: Layer["amplitude"]): Anchor {

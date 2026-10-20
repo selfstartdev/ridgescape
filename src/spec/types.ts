@@ -27,12 +27,19 @@ export interface Anchor {
   width: Length;
 }
 
+/** Groups of tree shapes: each tree picks one of the group's shapes at random. */
 export type TreeKind = "conifer" | "deciduous" | "mixed";
+
+/** Conifers: spruce (tiered), fir (a smooth spire), pine (tufts on top), cypress (a column). Deciduous: maple (round), oak (broad and lumpy), poplar (tall and narrow). */
+export type TreeShape = "spruce" | "fir" | "pine" | "cypress" | "maple" | "oak" | "poplar";
+
+/** A group, one shape, a list of either (equally likely), or shapes with weights. */
+export type TreeKindInput = TreeKind | TreeShape | readonly (TreeKind | TreeShape)[] | Partial<Record<TreeShape, number>>;
 
 /** A tree line along a layer's crest. */
 export interface TreesInput {
-  /** Default "conifer". */
-  kind?: TreeKind;
+  /** Which trees, mixed at random. Default "conifer". */
+  kind?: TreeKindInput;
   /** 0–1: sparse to a solid forest. Default 0.6. */
   density?: number;
   /** Typical tree height: px, or % of the element's height. Default by depth: 44px at the front, smaller further back. */
@@ -47,7 +54,8 @@ export interface TreesInput {
 }
 
 export interface Trees {
-  kind: TreeKind;
+  /** Each shape's share of the trees, summing to 1. */
+  kind: Partial<Record<TreeShape, number>>;
   density: number;
   height: Length;
   cover: number;

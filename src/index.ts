@@ -14,7 +14,7 @@ export {
   type RenderedShape,
   type RenderOptions,
 } from "./render";
-export { resolve, resolvePalette, ANCHOR_HEIGHTS, CLOUD_DEFAULTS, DEPTH_DEFAULTS, PROFILE_DEFAULTS, SCENE_DEFAULTS, SKY_DEFAULTS, TREE_DEFAULTS, LAKE_DEFAULTS } from "./spec/resolve";
+export { resolve, resolvePalette, ANCHOR_HEIGHTS, CLOUD_DEFAULTS, DEPTH_DEFAULTS, PROFILE_DEFAULTS, SCENE_DEFAULTS, SKY_DEFAULTS, TREE_DEFAULTS, TREE_GROUPS, TREE_SHAPES, LAKE_DEFAULTS } from "./spec/resolve";
 export { palettes, type PaletteName } from "./palettes";
 export { presets, type PresetName } from "./presets";
 export { drawLayer, drawShape, drawToCanvas, type CanvasContext, type DrawOptions } from "./canvas";
@@ -49,6 +49,8 @@ export type {
   Sun,
   SunInput,
   TreeKind,
+  TreeKindInput,
+  TreeShape,
   Trees,
   TreesInput,
 } from "./spec/types";
@@ -59,7 +61,7 @@ export { buildProfile, SAMPLE_STEP, type Profile, type ProfileOptions } from "./
 export { periodicNoise, octaves, type Noise, type Octaves } from "./profile/noise";
 export { buildOutline, simplify, type Outline, type OutlineOptions, type Vec, type WaterSpan } from "./outline";
 export { waterShapes } from "./lakes";
-export { placeTrees, treeHeightAt, treeKeyPoints, type Dome, type Tree, type TreeOptions } from "./trees";
+export { placeTrees, treeHeightAt, treeKeyPoints, type Tree, type TreeOptions, type TreePart } from "./trees";
 export { format as formatColor, layerColor, mix, parseColor, type RGBA } from "./color";
 export { clipId, defsMarkup, formatNumber, gradientMarkup, layerMarkup, shapeMarkup } from "./render";
 export { capsulePath, circlePath, groundPath, rectPath } from "./render/paths";

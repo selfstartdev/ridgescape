@@ -46,6 +46,7 @@ const extras: Record<string, SceneInput> = {
       { trees: { kind: "deciduous", height: "6%" } },
       { trees: { kind: "mixed", density: 1, cover: 0.5, variation: 0.6 } },
       { trees: { color: "#123", height: 80 }, anchors: [{ at: "60%", kind: "flat" }] },
+      { trees: { kind: { spruce: 2, pine: 1, oak: 1, poplar: 1 }, height: 60 } },
     ],
   },
   lakes: {

@@ -78,7 +78,7 @@ layers: [
 | `color` | Instead of the palette and haze; any CSS colour. |
 | `mist` | 0–1: fade toward the haze colour in the valleys. |
 | `anchors` | Peaks, dips or flat stretches at chosen positions: `{ at, kind?, height?, width? }`. |
-| `trees` | A tree line along the crest: `true`, or `{ kind, height, density, cover, variation, color, seed }` (kinds: conifer, deciduous, mixed). |
+| `trees` | A tree line along the crest: `true`, or `{ kind, height, density, cover, variation, color, seed }`. `kind` is a group (conifer, deciduous, mixed), a shape (spruce, fir, pine, cypress, maple, oak, poplar), a list, or shapes with weights. |
 | `lakes` | Water that reflects what's behind it: `[{ at, width, level, reflection, ripples, color }]`. |
 | `seed` | Instead of one derived from the scene's seed and the layer's index. |
 
