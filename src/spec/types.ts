@@ -44,7 +44,7 @@ export interface TreesInput {
   density?: number;
   /** Typical tree height: px, or % of the element's height. Default by depth: 44px at the front, smaller further back. */
   height?: Length;
-  /** 0–1: how much of the ridge is forest rather than clearing. Default 0.85. */
+  /** 0–1: how much of the ridge is forest rather than clearing. Default 1: unbroken. */
   cover?: number;
   /** 0–1: how much tree heights vary. Default 0.3. */
   variation?: number;
@@ -75,10 +75,10 @@ export interface LakeInput {
   level?: Length;
   /** Water colour. Default: the sky's bottom colour, darkened toward the layer's. */
   color?: string;
-  /** 0–1: how clearly it mirrors the layers behind it. Default 0.6. */
-  reflection?: number;
-  /** 0–1: how many ripple streaks. Default 0.5. */
-  ripples?: number;
+  /** Mirror the sky, clouds and layers behind it. Default true. */
+  reflection?: boolean;
+  /** Ripple streaks on the surface. Default true. */
+  ripples?: boolean;
 }
 
 export interface Lake {
@@ -86,8 +86,8 @@ export interface Lake {
   width: Length;
   level: Length;
   color: string;
-  reflection: number;
-  ripples: number;
+  reflection: boolean;
+  ripples: boolean;
 }
 
 export interface LayerInput {

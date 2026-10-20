@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
-import { attachParallax, defsMarkup, drawLayer, layerMarkup, render, type ParallaxOptions, type RenderedLayer, type Scene, type SceneInput } from "ridgescape";
+import { attachParallax, clipStyle, defsMarkup, drawLayer, layerMarkup, render, type ParallaxOptions, type RenderedLayer, type Scene, type SceneInput } from "ridgescape";
 
 // Everything in the core is also available from "ridgescape/react", including ridgescapeParentStyle
 // (though server components should import that from "ridgescape"; see src/parent.ts).
@@ -146,9 +146,23 @@ interface LayerProps {
 /** Every layer is its own element, so parallax can move it without redrawing. */
 const layerElementStyle: CSSProperties = { position: "absolute", top: 0, left: 0, display: "block" };
 
+/** Reflections are clipped to their water by CSS rather than inside, so parallax can move them within it. */
+const unclipped = { clipMirrors: false };
+
+/** Attributes and style for a layer's element: depth for parallax, and a reflection's water. */
+function layerAttributes(layer: RenderedLayer, style: CSSProperties) {
+  const mirror = layer.mirror;
+  return {
+    "data-depth": layer.depth,
+    "data-kind": layer.kind,
+    ...(mirror ? { "data-mirror": mirror.depth, "data-water": JSON.stringify(mirror.water) } : {}),
+    style: mirror ? { ...style, clipPath: clipStyle(mirror.water, 0) } : style,
+  };
+}
+
 function SvgLayer({ layer, width, height, idPrefix }: LayerProps) {
   // The same markup toSvg() writes, so the two can't drift apart.
-  const markup = defsMarkup([layer], idPrefix) + layerMarkup(layer, idPrefix);
+  const markup = defsMarkup([layer], idPrefix, unclipped) + layerMarkup(layer, idPrefix, unclipped);
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -156,9 +170,7 @@ function SvgLayer({ layer, width, height, idPrefix }: LayerProps) {
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       focusable="false"
-      data-depth={layer.depth}
-      data-kind={layer.kind}
-      style={layerElementStyle}
+      {...layerAttributes(layer, layerElementStyle)}
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
@@ -177,16 +189,14 @@ function CanvasLayer({ layer, width, height }: LayerProps) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx.scale(ratio, ratio);
-    drawLayer(ctx, layer);
+    drawLayer(ctx, layer, unclipped);
   }, [layer, ratio, width, height]);
   return (
     <canvas
       ref={ref}
       width={Math.round(width * ratio)}
       height={Math.round(height * ratio)}
-      data-depth={layer.depth}
-      data-kind={layer.kind}
-      style={{ ...layerElementStyle, width, height }}
+      {...layerAttributes(layer, { ...layerElementStyle, width, height })}
     />
   );
 }

@@ -8,7 +8,12 @@
  * strength × depth × the distance from there. While the element's bottom is
  * still below the window, layers lift, and the gap that opens at their bottom
  * is always off-screen: a layer moves less than the page does.
+ *
+ * Reflections move the other way: a lake at offset L mirroring a layer at
+ * offset S shows it at 2L − S, clipped to the water, which stays at L.
  */
+import { mirrorClip } from "../lakes";
+import type { Rect } from "../render/types";
 
 export interface ParallaxOptions {
   /** 0–1: how much the furthest layer lags behind the page. Default 0.3. */
@@ -45,6 +50,8 @@ export function attachParallax(container: HTMLElement, { strength = PARALLAX_DEF
     for (const el of layers()) {
       el.style.transform = "";
       el.style.willChange = "";
+      const water = waterOf(el);
+      if (water) el.style.clipPath = clipStyle(water, 0);
     }
   };
   const reduced = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
@@ -56,7 +63,15 @@ export function attachParallax(container: HTMLElement, { strength = PARALLAX_DEF
     const vh = window.innerHeight;
     const delta = parallaxDelta(container.getBoundingClientRect(), vh);
     for (const el of layers()) {
-      const offset = parallaxOffset(Number(el.getAttribute("data-depth")) || 0, strength, delta, vh);
+      let offset = parallaxOffset(Number(el.getAttribute("data-depth")) || 0, strength, delta, vh);
+      const water = waterOf(el);
+      if (water) {
+        const source = parallaxOffset(Number(el.getAttribute("data-mirror")) || 0, strength, delta, vh);
+        const lake = offset;
+        offset = round(2 * lake - source);
+        // Keep the clip on the water: in the element's own coordinates, it's the other way by as much.
+        el.style.clipPath = clipStyle(water, round(lake - offset));
+      }
       el.style.willChange = "transform";
       el.style.transform = offset === 0 ? "" : `translate3d(0, ${offset}px, 0)`;
     }
@@ -76,4 +91,22 @@ export function attachParallax(container: HTMLElement, { strength = PARALLAX_DEF
     if (frame) cancelAnimationFrame(frame);
     reset();
   };
+}
+
+const round = (n: number) => Math.round(n * 100) / 100 + 0;
+
+/** A reflection element's water, from its data-water attribute; null for every other layer. */
+function waterOf(el: Element): Rect[] | null {
+  const attr = el.getAttribute("data-water");
+  if (!attr) return null;
+  try {
+    return JSON.parse(attr) as Rect[];
+  } catch {
+    return null;
+  }
+}
+
+/** CSS clip-path for a reflection element, its water shifted down by dy. */
+export function clipStyle(water: Rect[], dy: number): string {
+  return `path("${mirrorClip(water, dy)}")`;
 }

@@ -5,7 +5,7 @@
  */
 import { cloudLayers } from "../clouds";
 import { mix } from "../color";
-import { waterShapes } from "../lakes";
+import { mirrorClip, reflectionLayers, waterBase, waterSurface, type LakeSpan } from "../lakes";
 import { buildOutline } from "../outline";
 import { hashString } from "../random";
 import { skyLayers } from "../sky";
@@ -66,11 +66,16 @@ export function render(scene: SceneInput | Scene, { width, height, overscan = 0,
       layer.trees?.color && outline.ground
         ? [{ d: groundPath(outline.crest, outline.bottom, fmt), fill: layer.trees.color }, { d: groundPath(outline.ground, outline.bottom, fmt), fill }]
         : [{ d: groundPath(outline.crest, outline.bottom, fmt), fill }];
+    const spans: LakeSpan[] = outline.water.map((span) => ({ span, lake: layer.lakes[span.lake]!, seed: `${layer.seed}:lake:${span.lake}` }));
+    shapes.push(...waterBase(spans, outline.bottom, ctx));
     // Lakes reflect everything drawn so far, which is everything behind this layer.
-    for (const span of outline.water) {
-      shapes.push(...waterShapes(span, layer.lakes[span.lake]!, layers, outline.bottom, `${layer.seed}:lake:${span.lake}`, ctx));
-    }
+    const reflections = reflectionLayers(spans, layers, outline.bottom, `reflection-${index}`, index, layer.depth, ctx);
     layers.push({ key: `ground-${index}`, kind: "ground", index, depth: layer.depth, shapes, top: ctx.round(outline.top) });
+    if (spans.length > 0) {
+      layers.push(...reflections);
+      const surface = waterSurface(spans, outline.bottom, ctx);
+      layers.push({ key: `water-${index}`, kind: "water", index, depth: layer.depth, shapes: surface, top: ctx.round(Math.min(...spans.map((s) => s.span.y))) });
+    }
   });
   return { width, height, overscan: ctx.overscan, layers };
 }
@@ -101,10 +106,27 @@ export function clipId(shape: RenderedShape, idPrefix: string): string {
   return `${idPrefix}-clip-${hashString(shape.clip!).toString(36)}`;
 }
 
+export interface MarkupOptions {
+  /**
+   * Clip reflection layers to their water. Default true. <Ridgescape> turns it off and clips each
+   * reflection's element with CSS instead, so parallax can move the reflection within its water.
+   */
+  clipMirrors?: boolean;
+}
+
+/** The id of a reflection layer's clip path. */
+export function mirrorClipId(layer: RenderedLayer, idPrefix: string): string {
+  return `${idPrefix}-clip-${hashString(mirrorClip(layer.mirror!.water)).toString(36)}`;
+}
+
 /** Gradient and clip path definitions the layers need, each once, in order of first use. */
-export function defsMarkup(layers: RenderedLayer[], idPrefix = "ridgescape"): string {
+export function defsMarkup(layers: RenderedLayer[], idPrefix = "ridgescape", { clipMirrors = true }: MarkupOptions = {}): string {
   const defs = new Map<string, string>();
   for (const layer of layers) {
+    if (layer.mirror && clipMirrors) {
+      const id = mirrorClipId(layer, idPrefix);
+      if (!defs.has(id)) defs.set(id, `<clipPath id="${id}"><path d="${mirrorClip(layer.mirror.water)}"/></clipPath>`);
+    }
     for (const shape of layer.shapes) {
       if (typeof shape.fill !== "string" && !defs.has(shape.fill.id)) defs.set(shape.fill.id, gradientMarkup(shape.fill));
       if (shape.clip) {
@@ -126,8 +148,9 @@ export function shapeMarkup(shape: RenderedShape, idPrefix = "ridgescape"): stri
 }
 
 /** The SVG markup for one layer's shapes. */
-export function layerMarkup(layer: RenderedLayer, idPrefix = "ridgescape"): string {
-  return layer.shapes.map((s) => shapeMarkup(s, idPrefix)).join("");
+export function layerMarkup(layer: RenderedLayer, idPrefix = "ridgescape", { clipMirrors = true }: MarkupOptions = {}): string {
+  const shapes = layer.shapes.map((s) => shapeMarkup(s, idPrefix)).join("");
+  return layer.mirror && clipMirrors ? `<g clip-path="url(#${mirrorClipId(layer, idPrefix)})">${shapes}</g>` : shapes;
 }
 
 /** Writes rendered data as a standalone SVG string. */

@@ -3,7 +3,8 @@
  * never drift apart. Needs Path2D (every current browser; not Node).
  */
 import { format, parseColor } from "../color";
-import type { Fill, RenderedLayer, RenderedScene, RenderedShape } from "../render";
+import { mirrorClip } from "../lakes";
+import type { Fill, MarkupOptions, RenderedLayer, RenderedScene, RenderedShape } from "../render";
 
 /** The subset of CanvasRenderingContext2D ridgescape uses. */
 export type CanvasContext = Pick<
@@ -45,8 +46,14 @@ export function drawShape(ctx: CanvasContext, shape: RenderedShape): void {
 }
 
 /** Paints one layer in element coordinates (CSS px). */
-export function drawLayer(ctx: CanvasContext, layer: RenderedLayer): void {
+export function drawLayer(ctx: CanvasContext, layer: RenderedLayer, { clipMirrors = true }: MarkupOptions = {}): void {
+  const clip = layer.mirror && clipMirrors;
+  if (clip) {
+    ctx.save();
+    ctx.clip(new Path2D(mirrorClip(layer.mirror!.water)));
+  }
   for (const shape of layer.shapes) drawShape(ctx, shape);
+  if (clip) ctx.restore();
 }
 
 /** Paints layers (all of them by default) onto a canvas sized to the rendered scene. */

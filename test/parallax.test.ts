@@ -85,4 +85,31 @@ describe("attachParallax", () => {
     attachParallax(container);
     expect(far.style.transform).toBe("");
   });
+
+  it("moves reflections the other way to what they mirror, keeping their clip on the water", () => {
+    const container = document.createElement("div");
+    container.innerHTML = '<svg data-depth="0" data-mirror="1" data-water="[[0,400,100,500]]"></svg>';
+    container.getBoundingClientRect = () => ({ ...rect }) as DOMRect;
+    document.body.appendChild(container);
+    const el = container.querySelector("svg")!;
+    const detach = attachParallax(container, { strength: 0.5 });
+    const scroll = () => {
+      window.dispatchEvent(new Event("scroll"));
+      for (const f of frames.splice(0)) f(0);
+    };
+    rect = { top: 100, bottom: 900 };
+    scroll();
+    // A lake at the front (0px) mirroring a layer lifted by 50px: the reflection goes down by 50px,
+    // and its water is 50px up in its own coordinates, so it stays where it was on screen.
+    expect(el.style.transform).toBe("translate3d(0, 50px, 0)");
+    expect(el.getAttribute("style")).toContain('path("M0 350H100V450H0Z")');
+    // A lake at 25px mirroring a layer at 50px: 2 × 25 − 50 = 0, the water 25px down.
+    el.setAttribute("data-depth", "0.5");
+    rect = { top: -100, bottom: 400 };
+    scroll();
+    expect(el.style.transform).toBe("");
+    expect(el.getAttribute("style")).toContain('path("M0 425H100V525H0Z")');
+    detach();
+    expect(el.getAttribute("style")).toContain('path("M0 400H100V500H0Z")');
+  });
 });

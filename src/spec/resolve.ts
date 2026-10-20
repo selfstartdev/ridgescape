@@ -92,7 +92,7 @@ export const CLOUD_DEFAULTS = {
 export const TREE_DEFAULTS = {
   kind: "conifer" as TreeKind,
   density: 0.6,
-  cover: 0.85,
+  cover: 1,
   variation: 0.3,
   /** Height in px by depth: 44 at the front, 12 at the horizon. */
   height: (d: number) => Math.round(44 * (1 - 0.72 * d)),
@@ -107,7 +107,7 @@ export const TREE_GROUPS: Record<TreeKind, Partial<Record<TreeShape, number>>> =
 
 export const TREE_SHAPES: readonly TreeShape[] = ["spruce", "fir", "pine", "cypress", "maple", "oak", "poplar"];
 
-export const LAKE_DEFAULTS = { width: "30%" as const, level: 0.12, reflection: 0.6, ripples: 0.5 };
+export const LAKE_DEFAULTS = { width: "30%" as const, level: 0.12, reflection: true, ripples: true };
 
 /** Anchor heights by kind, as fractions of the layer's amplitude. */
 export const ANCHOR_HEIGHTS: Record<AnchorKind, number> = { peak: 1.15, dip: 0, flat: 0.2 };
@@ -167,14 +167,19 @@ function resolveLayer(input: LayerInput, ctx: LayerContext): Layer {
   };
 }
 
+function flag(value: unknown, name: string): boolean {
+  if (typeof value !== "boolean") throw new TypeError(`ridgescape: ${name} must be true or false, got ${JSON.stringify(value)}`);
+  return value;
+}
+
 function resolveLake(input: LakeInput | Lake, amplitude: Layer["amplitude"], layerColor: string, palette: Palette): Lake {
   return {
     at: length(input.at, "lake at"),
     width: length(input.width ?? LAKE_DEFAULTS.width, "lake width"),
     level: length(input.level ?? scaleLength(amplitude, LAKE_DEFAULTS.level), "lake level"),
     color: input.color ?? waterColor(palette.sky[1], layerColor),
-    reflection: unit(input.reflection ?? LAKE_DEFAULTS.reflection, "lake reflection"),
-    ripples: unit(input.ripples ?? LAKE_DEFAULTS.ripples, "lake ripples"),
+    reflection: flag(input.reflection ?? LAKE_DEFAULTS.reflection, "lake reflection"),
+    ripples: flag(input.ripples ?? LAKE_DEFAULTS.ripples, "lake ripples"),
   };
 }
 

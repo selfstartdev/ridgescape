@@ -96,6 +96,8 @@ export function buildOutline(layer: Layer, size: Size, { overscan = 0, tolerance
 interface LakeShape {
   center: number;
   half: number;
+  /** Too wide to leave land between its repeats: water all the way across. */
+  endless: boolean;
   /** Water surface height above the bottom. */
   level: number;
   adjust: (x: number, h: number) => number;
@@ -107,6 +109,8 @@ interface LakeShape {
 const LAKE_BED = 3;
 /** Banks rise this far above the water at the shore. */
 const BANK = 3;
+/** The least land, px, between a lake's repeats beyond its two banks. */
+const MIN_LAND = 60;
 
 /**
  * A lake: the ground is held just under the water across its width, then rises to a small bank at
@@ -114,9 +118,13 @@ const BANK = 3;
  */
 function lakeShape(lake: Lake, size: Size, period: number, baseline: number): LakeShape {
   const center = resolveLength(lake.at, size.width);
-  const half = Math.min(period / 2 - 1, Math.max(1, resolveLength(lake.width, size.width) / 2));
+  const width = resolveLength(lake.width, size.width);
+  const half = Math.min(period / 2 - 1, Math.max(1, width / 2));
   const level = baseline + resolveLength(lake.level, size.height);
   const bank = Math.min(Math.max(half * 0.3, 10), 80);
+  // As wide as the element ("100%"), or so wide that the land between repeats would be just a
+  // seam (less than two banks and a bit of shore): the water carries on all the way across.
+  const endless = width >= size.width || period - 2 * half < 2 * bank + MIN_LAND;
   const distance = (x: number) => {
     const d = mod(x - center, period);
     return Math.min(d, period - d);
@@ -124,8 +132,10 @@ function lakeShape(lake: Lake, size: Size, period: number, baseline: number): La
   return {
     center,
     half,
+    endless,
     level,
     adjust(x, h) {
+      if (endless) return level - LAKE_BED;
       const d = distance(x);
       if (d <= half) return level - LAKE_BED;
       if (d >= half + bank) return h;
@@ -134,7 +144,7 @@ function lakeShape(lake: Lake, size: Size, period: number, baseline: number): La
       // From the bank's top at the shore to the terrain, whichever way the terrain lies.
       return level + BANK + (h - level - BANK) * ease;
     },
-    wet: (x) => distance(x) < half + bank * 0.5,
+    wet: (x) => endless || distance(x) < half + bank * 0.5,
   };
 }
 
@@ -142,6 +152,10 @@ function lakeShape(lake: Lake, size: Size, period: number, baseline: number): La
 function waterSpans(lakes: LakeShape[], size: Size, period: number): WaterSpan[] {
   const spans: WaterSpan[] = [];
   lakes.forEach((l, lake) => {
+    if (l.endless) {
+      spans.push({ lake, copy: 0, x0: -1, x1: size.width + 1, y: size.height - l.level });
+      return;
+    }
     const start = Math.floor((-l.half - l.center) / period);
     for (let copy = start; l.center + copy * period - l.half < size.width; copy++) {
       const x0 = l.center + copy * period - l.half;

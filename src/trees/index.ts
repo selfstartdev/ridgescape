@@ -198,7 +198,8 @@ export function placeTrees({ trees, height, period }: TreeOptions): Tree[] {
 
   // Forest and clearing: smooth noise along the ridge. The spots where it's lowest are forest, as
   // many as `cover` asks for, so cover is the share of trees kept whatever the noise does.
-  const cells = Math.max(3, Math.round(period / 700));
+  // About one patch every 400px, so clearings are several glades rather than one wide gap.
+  const cells = Math.max(4, Math.round(period / 400));
   const patches = periodicNoise(random.fork("patches"), cells);
   const patch = spots.map((x) => patches((x / period) * cells));
   const ranked = [...patch].sort((a, b) => a - b);

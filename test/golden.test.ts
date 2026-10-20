@@ -54,8 +54,9 @@ const extras: Record<string, SceneInput> = {
     sky: true,
     layers: [
       { profile: "peaks" },
-      { lakes: [{ at: "30%", width: 500, level: 30, ripples: 0 }] },
-      { trees: true, lakes: [{ at: "75%", width: "30%", reflection: 0.3, color: "#2b5d7a" }] },
+      { lakes: [{ at: "30%", width: 500, level: 30, ripples: false }] },
+      { trees: true, lakes: [{ at: "75%", width: "30%", reflection: false, color: "#2b5d7a" }] },
+      { lakes: [{ at: "50%", width: "100%", level: 20 }] },
     ],
   },
   "clouds-streaks": { seed: "streaks", palette: "desert", clouds: { style: "streaks", bands: 2, shade: 0, opacity: 0.6 }, layers: 1 },

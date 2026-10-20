@@ -44,7 +44,21 @@ export interface RenderedShape {
   transform?: Matrix;
 }
 
-export type LayerKind = "sky" | "stars" | "sun" | "moon" | "clouds" | "ground";
+export type LayerKind = "sky" | "stars" | "sun" | "moon" | "clouds" | "ground" | "reflection" | "water";
+
+/** [x0, y0, x1, y1]. */
+export type Rect = [number, number, number, number];
+
+/**
+ * A reflection layer: layers at `depth` mirrored in a lake, clipped to its water. With parallax it
+ * moves the opposite way to what it mirrors, as a reflection does.
+ */
+export interface Mirror {
+  /** Depth of the layers it mirrors. */
+  depth: number;
+  /** The water it shows in. */
+  water: Rect[];
+}
 
 export interface RenderedLayer {
   /** Unique within the scene: "sky", "clouds-1", "ground-3"… */
@@ -58,13 +72,15 @@ export interface RenderedLayer {
   shapes: RenderedShape[];
   /** Highest point of the layer (smallest y). */
   top: number;
+  /** Reflection layers only. */
+  mirror?: Mirror;
 }
 
 export interface RenderedScene {
   width: number;
   height: number;
   overscan: number;
-  /** Back to front, in drawing order: sky, stars, sun, moon, clouds, then the ground layers. */
+  /** Back to front, in drawing order: sky, stars, sun, moon, clouds, then the ground layers (each followed by its lakes' reflection and water layers). */
   layers: RenderedLayer[];
 }
 

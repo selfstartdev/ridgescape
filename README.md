@@ -79,7 +79,7 @@ layers: [
 | `mist` | 0–1: fade toward the haze colour in the valleys. |
 | `anchors` | Peaks, dips or flat stretches at chosen positions: `{ at, kind?, height?, width? }`. |
 | `trees` | A tree line along the crest: `true`, or `{ kind, height, density, cover, variation, color, seed }`. `kind` is a group (conifer, deciduous, mixed), a shape (spruce, fir, pine, cypress, maple, oak, poplar), a list, or shapes with weights. |
-| `lakes` | Water that reflects what's behind it: `[{ at, width, level, reflection, ripples, color }]`. |
+| `lakes` | Water that reflects what's behind it: `[{ at, width, level, reflection, ripples, color }]`; `reflection` and `ripples` are on/off. A `"100%"` lake is water all the way across. |
 | `seed` | Instead of one derived from the scene's seed and the layer's index. |
 
 Ten presets are in `presets` (`sierra`, `meadow`, `misty`, `mesa`, `glacier`, `nightfall`, `pinewood`, and `summer`, `starlight` and `lakeside`, which draw their own sky); spread one and change what you like.

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildOutline, drawShape, render, resolve, type CanvasContext, type LayerInput } from "ridgescape";
+import { buildOutline, drawShape, render, resolve, toSvg, type CanvasContext, type LayerInput } from "ridgescape";
 
 const size = { width: 1200, height: 600 };
 const layer = (lakes: LayerInput["lakes"], extra: LayerInput = {}) =>
@@ -13,7 +13,7 @@ function heightAt(crest: { x: number; y: number }[], x: number) {
 describe("lakes", () => {
   it("fill their defaults", () => {
     const l = layer([{ at: "50%" }]);
-    expect(l.lakes[0]).toMatchObject({ at: "50%", width: "30%", level: 14.4, reflection: 0.6, ripples: 0.5 });
+    expect(l.lakes[0]).toMatchObject({ at: "50%", width: "30%", level: 14.4, reflection: true, ripples: true });
     expect(l.lakes[0]!.color).toMatch(/^#/);
     expect(resolve(resolve({ layers: [{ lakes: [{ at: 10 }] }] }))).toEqual(resolve({ layers: [{ lakes: [{ at: 10 }] }] }));
   });
@@ -35,23 +35,38 @@ describe("lakes", () => {
     for (let x = 310; x < 690; x += 5) expect(heightAt(o.crest, x)).toBeCloseTo(157, 6);
   });
 
-  it("reflect every shape behind them, mirrored at the waterline and clipped to the water", () => {
+  it("carry on across the layer when as wide as the element, or too wide to leave land between repeats", () => {
+    expect(buildOutline(layer([{ at: "40%", width: "100%" }], { period: 3000 }), size).water).toHaveLength(1);
+    expect(buildOutline(layer([{ at: 500, width: 1000 }], { period: 3000 }), { width: 1400, height: 600 }).water[0]!.x0).toBe(0);
+    const o = buildOutline(layer([{ at: "50%", width: "100%", level: 50 }]), size, { tolerance: 0 });
+    expect(o.water).toEqual([{ lake: 0, copy: 0, x0: -1, x1: 1201, y: 450 }]);
+    for (let x = 0; x <= 1200; x += 50) expect(heightAt(o.crest, x)).toBeCloseTo(147, 6);
+    // With room for land between repeats, they keep their shores.
+    expect(buildOutline(layer([{ at: "50%", width: 600 }]), size).water[0]!.x0).toBe(300);
+  });
+
+  it("reflect every shape behind them, one layer per depth, mirrored at the waterline and clipped to the water", () => {
     const r = render({ sky: { sun: true }, layers: [{}, { lakes: [{ at: "50%", width: 400 }] }] }, size);
-    const behind = r.layers.slice(0, -1).flatMap((l) => l.shapes);
-    const lake = r.layers[r.layers.length - 1]!.shapes;
-    const mirrored = lake.filter((s) => s.transform);
-    expect(mirrored).toHaveLength(behind.length);
-    for (const m of mirrored) {
-      expect(m.transform![3]).toBe(-1);
-      expect(m.clip).toMatch(/^M/);
+    expect(r.layers.map((l) => l.kind)).toEqual(["sky", "sun", "ground", "ground", "reflection", "reflection", "water"]);
+    const ground = r.layers.findIndex((l) => l.key === "ground-1");
+    const behind = r.layers.slice(0, ground);
+    const reflections = r.layers.filter((l) => l.mirror);
+    expect(reflections.map((l) => l.mirror!.depth).sort()).toEqual([...new Set(behind.map((l) => l.depth))].sort());
+    expect(reflections.flatMap((l) => l.shapes.map((s) => s.d)).sort()).toEqual(behind.flatMap((l) => l.shapes.map((s) => s.d)).sort());
+    for (const l of reflections) {
+      expect(l.depth).toBe(0);
+      expect(l.mirror!.water).toEqual([[400, 450, 800, 600]].map(([x0, , x1, y1]) => [x0, l.mirror!.water[0]![1], x1, y1]));
+      for (const s of l.shapes) expect(s.transform![3]).toBe(-1);
     }
-    expect(mirrored.map((m) => m.d)).toEqual(behind.map((s) => s.d));
+    expect(toSvg({ sky: { sun: true }, layers: [{}, { lakes: [{ at: "50%", width: 400 }] }] }, size)).toContain('<g clip-path="url(#ridgescape-clip-');
   });
 
   it("leave out reflections and ripples when asked", () => {
-    const shapes = (lake: object) => render({ layers: [{}, { lakes: [{ at: "50%", ...lake }] }] }, size).layers[1]!.shapes;
-    expect(shapes({ reflection: 0 }).some((s) => s.transform)).toBe(false);
-    expect(shapes({ ripples: 0 }).length).toBe(shapes({}).length - 1);
+    const layers = (lake: object) => render({ layers: [{}, { lakes: [{ at: "50%", ...lake }] }] }, size).layers;
+    expect(layers({ reflection: false }).some((l) => l.mirror)).toBe(false);
+    const surface = (lake: object) => layers(lake).find((l) => l.kind === "water")!.shapes;
+    expect(surface({ ripples: false }).length).toBe(surface({}).length - 1);
+    expect(() => layers({ reflection: 0.5 })).toThrow(/true or false/);
   });
 });
 
