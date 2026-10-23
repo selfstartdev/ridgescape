@@ -28,7 +28,7 @@ export const presets = {
     height: "60%",
     sky: { sun: { at: ["70%", "25%"] } },
     clouds: { bands: 1 },
-    layers: [{ profile: "peaks" }, { profile: "peaks" }, { trees: { density: 0.8 }, lakes: [{ at: "45%", width: "100%", level: "18%" }] }],
+    layers: [{ profile: "peaks" }, { profile: "peaks" }, { lakes: [{ at: "50%", width: "100%", level: "18%" }] }],
   },
   /** Pine forest climbing the hills, with misty valleys. */
   pinewood: { seed: 9, palette: "forest", layers: [{ profile: "peaks" }, { trees: true }, { trees: true }, { trees: { density: 0.85 } }] },

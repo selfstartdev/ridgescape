@@ -42,7 +42,7 @@ export interface TreesInput {
   kind?: TreeKindInput;
   /** 0–1: sparse to a solid forest. Default 0.6. */
   density?: number;
-  /** Typical tree height: px, or % of the element's height. Default by depth: 44px at the front, smaller further back. */
+  /** Typical tree height, above 0: px, or % of the element's height. Default by depth: 44px at the front, smaller further back. */
   height?: Length;
   /** 0–1: how much of the ridge is forest rather than clearing. Default 1: unbroken. */
   cover?: number;
@@ -233,7 +233,7 @@ export interface CloudsInput {
   style?: CloudStyle;
   /** Rows of clouds at different depths. Default 2. */
   bands?: number;
-  /** 0–1: how much of each row is cloud. Default 0.4. */
+  /** 0–1: how much of each row is cloud; 0 draws none. Default 0.4. */
   cover?: number;
   /** Bases of the highest and lowest rows, from the top. Default "14%" and "40%". */
   top?: Length;

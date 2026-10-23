@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { attachParallax, clipStyle, defsMarkup, drawLayer, layerMarkup, render, type ParallaxOptions, type RenderedLayer, type Scene, type SceneInput } from "ridgescape";
 
 // Everything in the core is also available from "ridgescape/react", including ridgescapeParentStyle
@@ -125,13 +125,23 @@ export function Ridgescape({
   const { width, height, overscan } = rendered;
   return (
     <div ref={ref} aria-hidden="true" className={className} style={layerStyle} data-ridgescape="">
-      {rendered.layers.map((layer) =>
-        renderer === "canvas" ? (
-          <CanvasLayer key={layer.key} layer={layer} width={width} height={height + overscan} idPrefix={idPrefix} />
+      {rendered.layers.map((layer) => {
+        const props = { layer, width, height: height + overscan, idPrefix };
+        const element = renderer === "canvas" ? <CanvasLayer {...props} /> : <SvgLayer {...props} />;
+        // A reflection: an element clipped to the water that moves with the lake, the layer moving within it.
+        return layer.mirror ? (
+          <div
+            key={layer.key}
+            data-depth={layer.depth}
+            data-kind={layer.kind}
+            style={{ ...layerElementStyle, width, height: height + overscan, clipPath: clipStyle(layer.mirror.water) }}
+          >
+            {element}
+          </div>
         ) : (
-          <SvgLayer key={layer.key} layer={layer} width={width} height={height + overscan} idPrefix={idPrefix} />
-        ),
-      )}
+          <Fragment key={layer.key}>{element}</Fragment>
+        );
+      })}
     </div>
   );
 }
@@ -146,17 +156,14 @@ interface LayerProps {
 /** Every layer is its own element, so parallax can move it without redrawing. */
 const layerElementStyle: CSSProperties = { position: "absolute", top: 0, left: 0, display: "block" };
 
-/** Reflections are clipped to their water by CSS rather than inside, so parallax can move them within it. */
+/** Reflections are clipped to their water by the element around them, so parallax can move them within it. */
 const unclipped = { clipMirrors: false };
 
-/** Attributes and style for a layer's element: depth for parallax, and a reflection's water. */
+/** Attributes for a layer's element: its depth for parallax, or for a reflection, the depth it mirrors. */
 function layerAttributes(layer: RenderedLayer, style: CSSProperties) {
-  const mirror = layer.mirror;
   return {
-    "data-depth": layer.depth,
-    "data-kind": layer.kind,
-    ...(mirror ? { "data-mirror": mirror.depth, "data-water": JSON.stringify(mirror.water) } : {}),
-    style: mirror ? { ...style, clipPath: clipStyle(mirror.water, 0) } : style,
+    ...(layer.mirror ? { "data-mirror": layer.mirror.depth } : { "data-depth": layer.depth, "data-kind": layer.kind }),
+    style,
   };
 }
 

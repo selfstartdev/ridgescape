@@ -143,7 +143,10 @@ export function shapeMarkup(shape: RenderedShape, idPrefix = "ridgescape"): stri
   const fill = typeof shape.fill === "string" ? escape(shape.fill) : `url(#${escape(shape.fill.id)})`;
   const opacity = shape.opacity !== undefined && shape.opacity !== 1 ? ` opacity="${shape.opacity}"` : "";
   const transform = shape.transform ? ` transform="matrix(${shape.transform.join(" ")})"` : "";
-  const path = `<path d="${shape.d}" fill="${fill}"${opacity}${transform}/>`;
+  // A reflection refers to the shape it mirrors, which carries its own fill and opacity.
+  const path = shape.href
+    ? `<use href="#${escape(shape.href)}"${transform}/>`
+    : `<path${shape.id ? ` id="${escape(shape.id)}"` : ""} d="${shape.d}" fill="${fill}"${opacity}${transform}/>`;
   return shape.clip ? `<g clip-path="url(#${clipId(shape, idPrefix)})">${path}</g>` : path;
 }
 

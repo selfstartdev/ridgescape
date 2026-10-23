@@ -23,6 +23,8 @@ export function cloudLayers(clouds: Clouds, palette: Palette, ctx: RenderContext
   const top = resolveLength(clouds.top, ctx.height);
   const bottom = resolveLength(clouds.bottom, ctx.height);
   const layers: RenderedLayer[] = [];
+  // No cover, no clouds; any cover at all gives each row at least one.
+  if (clouds.cover <= 0) return layers;
   for (let i = 0; i < clouds.bands; i++) {
     // 0 for the back (highest, smallest, hazier) row, 1 for the front.
     const t = clouds.bands > 1 ? i / (clouds.bands - 1) : 1;

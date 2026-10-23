@@ -4,7 +4,7 @@
  * decided here, so the rest of the pipeline only reads fields.
  */
 import { palettes, type PaletteName } from "../palettes";
-import { isLength, scaleLength } from "./length";
+import { isLength, resolveLength, scaleLength } from "./length";
 import type {
   Anchor,
   AnchorInput,
@@ -196,7 +196,7 @@ function resolveTrees(input: TreesInput | Trees, depth: number, layerSeed: strin
   return {
     kind: resolveTreeKind(input.kind ?? TREE_DEFAULTS.kind),
     density: unit(input.density ?? TREE_DEFAULTS.density, "trees.density"),
-    height: length(input.height ?? TREE_DEFAULTS.height(depth), "trees.height"),
+    height: positiveLength(input.height ?? TREE_DEFAULTS.height(depth), "trees.height"),
     cover: unit(input.cover ?? TREE_DEFAULTS.cover, "trees.cover"),
     variation: unit(input.variation ?? TREE_DEFAULTS.variation, "trees.variation"),
     color: input.color ?? null,
@@ -326,6 +326,13 @@ function positive(n: number, name: string): number {
 function length<T>(value: T, name: string): T & Layer["baseline"] {
   if (!isLength(value)) throw new TypeError(`ridgescape: ${name} must be px or a percentage, got ${JSON.stringify(value)}`);
   return value as T & Layer["baseline"];
+}
+
+/** A length above 0, in px or %. */
+function positiveLength<T>(value: T, name: string): T & Layer["baseline"] {
+  const l = length(value, name);
+  if (!(resolveLength(l, 100) > 0)) throw new RangeError(`ridgescape: ${name} must be greater than 0, got ${JSON.stringify(value)}`);
+  return l;
 }
 
 const round = (n: number) => Number(n.toFixed(4));

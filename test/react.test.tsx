@@ -139,6 +139,23 @@ describe("<Ridgescape>", () => {
     expect(canvas.container.querySelectorAll("canvas").length).toBe(kinds.length);
   });
 
+  it("draws a reflection inside an element clipped to its water, which moves with the lake", async () => {
+    const { container, errors } = await hydrate({ scene: presets.lakeside, parallax: true });
+    expect(errors).toEqual([]);
+    const outer = container.querySelectorAll<HTMLElement>('div[data-kind="reflection"]');
+    expect(outer.length).toBeGreaterThan(0);
+    for (const el of outer) {
+      expect(el.style.clipPath).toMatch(/^path\("M/);
+      const inner = el.firstElementChild!;
+      expect(inner.tagName.toLowerCase()).toBe("svg");
+      expect(inner.hasAttribute("data-mirror")).toBe(true);
+      expect(inner.hasAttribute("data-depth")).toBe(false);
+    }
+    // Reflections refer to what they mirror, which sits in an earlier layer's element.
+    const href = container.querySelector("use")!.getAttribute("href")!;
+    expect(container.querySelector(`path[id="${href.slice(1)}"]`)).not.toBeNull();
+  });
+
   it("is shown straight away with reveal=none", () => {
     expect(renderToString(page({ scene: {}, reveal: "none" }))).not.toContain("opacity");
   });

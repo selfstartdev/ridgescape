@@ -71,13 +71,16 @@ export function buildOutline(layer: Layer, size: Size, { overscan = 0, tolerance
     return h;
   };
   const water = waterSpans(lakes, size, period);
+  // Extra samples either side of every shore: the bed and the bank meet in a step there, and
+  // without them the slope between grid samples could dip under the water just past the shore.
+  const shores = water.filter((w) => !lakes[w.lake]!.endless).flatMap((w) => [w.x0 - SHORE, w.x0 + SHORE, w.x1 - SHORE, w.x1 + SHORE]);
 
   const bottom = size.height + Math.max(0, overscan);
   const last = Math.ceil((size.width + step) / step);
   if (layer.trees) {
     const groundAt = (x: number) => adjust(x, profileAt(x));
     const dry = (x: number) => lakes.every((l) => !l.wet(x));
-    const { crest, ground } = withTrees(layer, size, step, last, groundAt, dry, period, tolerance);
+    const { crest, ground } = withTrees(layer, size, step, last, groundAt, dry, period, tolerance, shores);
     return { crest, ground, top: topOf(crest), baseline: size.height - baseline, bottom, water };
   }
 
@@ -89,7 +92,9 @@ export function buildOutline(layer: Layer, size: Size, { overscan = 0, tolerance
     const h = adjust(x, baseline + amplitude * values[mod(i, count)]!);
     points.push({ x, y: size.height - h });
   }
-  const crest = simplify(points, tolerance);
+  for (const x of shores) if (x > first * step && x < last * step) points.push({ x, y: size.height - adjust(x, profileAt(x)) });
+  points.sort((a, b) => a.x - b.x);
+  const crest = simplifyKeeping(points, tolerance, new Set(shores));
   return { crest, top: topOf(crest), baseline: size.height - baseline, bottom, water };
 }
 
@@ -109,6 +114,8 @@ interface LakeShape {
 const LAKE_BED = 3;
 /** Banks rise this far above the water at the shore. */
 const BANK = 3;
+/** How far either side of a shore its extra samples sit, px: well under the output precision. */
+const SHORE = 0.001;
 /** The least land, px, between a lake's repeats beyond its two banks. */
 const MIN_LAND = 60;
 
@@ -122,9 +129,10 @@ function lakeShape(lake: Lake, size: Size, period: number, baseline: number): La
   const half = Math.min(period / 2 - 1, Math.max(1, width / 2));
   const level = baseline + resolveLength(lake.level, size.height);
   const bank = Math.min(Math.max(half * 0.3, 10), 80);
-  // As wide as the element ("100%"), or so wide that the land between repeats would be just a
-  // seam (less than two banks and a bit of shore): the water carries on all the way across.
-  const endless = width >= size.width || period - 2 * half < 2 * bank + MIN_LAND;
+  // Covering the whole element (`at: "50%", width: "100%"`), or so wide that the land between
+  // repeats would be just a seam (less than two banks and a bit of shore): the water carries on
+  // all the way across.
+  const endless = (center - width / 2 <= 0 && center + width / 2 >= size.width) || period - 2 * half < 2 * bank + MIN_LAND;
   const distance = (x: number) => {
     const d = mod(x - center, period);
     return Math.min(d, period - d);
@@ -189,6 +197,7 @@ function withTrees(
   dry: (x: number) => boolean,
   period: number,
   tolerance: number,
+  shores: number[],
 ) {
   const trees = placeTrees({ trees: layer.trees!, height: resolveLength(layer.trees!.height, size.height), period });
   const x0 = -step, x1 = last * step;
@@ -210,6 +219,7 @@ function withTrees(
   const xs: number[] = [];
   for (let i = -TREE_SUBSTEPS; i <= last * TREE_SUBSTEPS; i++) xs.push((i / TREE_SUBSTEPS) * step);
   for (const p of placed) for (const dx of treeKeyPoints(p.tree)) if (p.x + dx > x0 && p.x + dx < x1) xs.push(p.x + dx);
+  for (const x of shores) if (x > x0 && x < x1) xs.push(x);
   xs.sort((a, b) => a - b);
 
   const ground = xs.map(groundAt);
@@ -221,7 +231,8 @@ function withTrees(
       if (h > heights[j]!) heights[j] = h;
     }
   }
-  const toPoints = (hs: number[]) => simplify(xs.map((x, j) => ({ x, y: size.height - hs[j]! })), tolerance);
+  const fixed = new Set(shores);
+  const toPoints = (hs: number[]) => simplifyKeeping(xs.map((x, j) => ({ x, y: size.height - hs[j]! })), tolerance, fixed);
   return { crest: toPoints(heights), ground: toPoints(ground) };
 }
 
@@ -266,6 +277,20 @@ function anchorShape(
     const w = lift ? (1 - t) ** 2 * (1 + 2 * t) * (1 - t) ** 0.6 : 0.5 * (1 + Math.cos(Math.PI * t));
     return flat ? h + w * (baseline + height - h) : h + w * (baseline + height - center);
   };
+}
+
+/** simplify(), always keeping the points at the given xs (a shore's near-vertical step is thinner than the tolerance). */
+function simplifyKeeping(points: Vec[], tolerance: number, xs: Set<number>): Vec[] {
+  if (xs.size === 0 || points.length < 3) return simplify(points, tolerance);
+  const out: Vec[] = [];
+  let start = 0;
+  for (let i = 1; i < points.length; i++) {
+    if (i < points.length - 1 && !xs.has(points[i]!.x)) continue;
+    const piece = simplify(points.slice(start, i + 1), tolerance);
+    out.push(...(out.length > 0 ? piece.slice(1) : piece));
+    start = i;
+  }
+  return out;
 }
 
 /** Ramer–Douglas–Peucker: drops points within `tolerance` px of the line through their neighbours. */

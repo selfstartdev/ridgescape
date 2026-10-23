@@ -10,7 +10,8 @@
  * is always off-screen: a layer moves less than the page does.
  *
  * Reflections move the other way: a lake at offset L mirroring a layer at
- * offset S shows it at 2L − S, clipped to the water, which stays at L.
+ * offset S shows it at 2L − S, clipped to the water, which stays at L. The clip
+ * is on an element that moves with the lake, so it never changes.
  */
 import { mirrorClip } from "../lakes";
 import type { Rect } from "../render/types";
@@ -33,28 +34,40 @@ export function parallaxOffset(depth: number, strength: number, delta: number, v
   // Past a window's height the landscape is off-screen, so there's no need to keep moving it.
   const d = Math.min(viewportHeight, Math.max(-viewportHeight, delta));
   const k = Math.min(1, Math.max(0, strength * depth));
-  const offset = -k * d;
-  return offset === 0 ? 0 : Math.round(offset * 100) / 100;
+  return round(-k * d);
 }
 
 /**
- * Moves the layers inside `container` (elements with a `data-depth` attribute,
- * as <Ridgescape> and render() layers are drawn) as the page scrolls. Does
+ * Moves the layers inside `container` as the page scrolls: elements with a
+ * `data-depth` attribute, as <Ridgescape> and render() layers are drawn, and
+ * reflections. A reflection is an element with `data-mirror` (the depth it
+ * mirrors) inside one with `data-depth` (its lake's depth) that is clipped to
+ * the water: the outer one moves with the lake, the inner one by the rest. Does
  * nothing under prefers-reduced-motion. Returns a function that stops it and
  * resets the layers.
+ *
+ * The elements are read once, so attach again after replacing them.
  */
 export function attachParallax(container: HTMLElement, { strength = PARALLAX_DEFAULTS.strength }: ParallaxOptions = {}): () => void {
   if (typeof window === "undefined") return () => {};
-  const layers = () => Array.from(container.querySelectorAll<HTMLElement | SVGElement>("[data-depth]"));
+  const depth = (el: Element, name: string) => Number(el.getAttribute(name)) || 0;
+  const layers = Array.from(container.querySelectorAll<HTMLElement | SVGElement>("[data-depth]"), (el) => ({ el, depth: depth(el, "data-depth") }));
+  const mirrors = Array.from(container.querySelectorAll<HTMLElement | SVGElement>("[data-mirror]"), (el) => {
+    const lake = el.parentElement?.closest("[data-depth]");
+    return { el, depth: depth(el, "data-mirror"), lake: lake && container.contains(lake) ? depth(lake, "data-depth") : 0 };
+  });
+  const all = [...layers, ...mirrors];
   const reset = () => {
-    for (const el of layers()) {
+    for (const { el } of all) {
       el.style.transform = "";
       el.style.willChange = "";
-      const water = waterOf(el);
-      if (water) el.style.clipPath = clipStyle(water, 0);
     }
   };
   const reduced = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+  const move = (el: HTMLElement | SVGElement, offset: number) => {
+    el.style.willChange = "transform";
+    el.style.transform = offset === 0 ? "" : `translate3d(0, ${offset}px, 0)`;
+  };
 
   let frame = 0;
   const update = () => {
@@ -62,19 +75,10 @@ export function attachParallax(container: HTMLElement, { strength = PARALLAX_DEF
     if (reduced?.matches) return reset();
     const vh = window.innerHeight;
     const delta = parallaxDelta(container.getBoundingClientRect(), vh);
-    for (const el of layers()) {
-      let offset = parallaxOffset(Number(el.getAttribute("data-depth")) || 0, strength, delta, vh);
-      const water = waterOf(el);
-      if (water) {
-        const source = parallaxOffset(Number(el.getAttribute("data-mirror")) || 0, strength, delta, vh);
-        const lake = offset;
-        offset = round(2 * lake - source);
-        // Keep the clip on the water: in the element's own coordinates, it's the other way by as much.
-        el.style.clipPath = clipStyle(water, round(lake - offset));
-      }
-      el.style.willChange = "transform";
-      el.style.transform = offset === 0 ? "" : `translate3d(0, ${offset}px, 0)`;
-    }
+    const offset = (d: number) => parallaxOffset(d, strength, delta, vh);
+    for (const l of layers) move(l.el, offset(l.depth));
+    // A reflection shows at 2L − S; its lake's element is already at L.
+    for (const m of mirrors) move(m.el, round(offset(m.lake) - offset(m.depth)));
   };
   const schedule = () => {
     if (!frame) frame = requestAnimationFrame(update);
@@ -95,18 +99,7 @@ export function attachParallax(container: HTMLElement, { strength = PARALLAX_DEF
 
 const round = (n: number) => Math.round(n * 100) / 100 + 0;
 
-/** A reflection element's water, from its data-water attribute; null for every other layer. */
-function waterOf(el: Element): Rect[] | null {
-  const attr = el.getAttribute("data-water");
-  if (!attr) return null;
-  try {
-    return JSON.parse(attr) as Rect[];
-  } catch {
-    return null;
-  }
-}
-
-/** CSS clip-path for a reflection element, its water shifted down by dy. */
-export function clipStyle(water: Rect[], dy: number): string {
-  return `path("${mirrorClip(water, dy)}")`;
+/** CSS clip-path for a reflection's outer element: its water. */
+export function clipStyle(water: Rect[]): string {
+  return `path("${mirrorClip(water)}")`;
 }

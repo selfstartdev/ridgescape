@@ -34,7 +34,11 @@ export function waterBase(spans: LakeSpan[], bottom: number, ctx: RenderContext)
 
 /**
  * Reflections: every shape behind, mirrored at the waterline (y → 2·waterline − y), one layer per
- * depth. Other lakes' reflections and clipped shapes (shorelines, ripples) aren't mirrored again.
+ * run of neighbouring layers at the same depth, so the reflection stacks them as the scene does.
+ * Other lakes' reflections and clipped shapes (shorelines, ripples) aren't mirrored again.
+ *
+ * Each mirrored shape gets an `id`, and its reflection an `href` to it, so SVG can draw the
+ * reflection with <use> rather than repeating the path data.
  */
 export function reflectionLayers(spans: LakeSpan[], behind: RenderedLayer[], bottom: number, key: string, index: number, depth: number, ctx: RenderContext): RenderedLayer[] {
   const out: RenderedLayer[] = [];
@@ -48,17 +52,22 @@ export function reflectionLayers(spans: LakeSpan[], behind: RenderedLayer[], bot
   }
   for (const [y, water] of byLevel) {
     const mirror: Matrix = [1, 0, 0, -1, 0, ctx.round(2 * y)];
-    const byDepth = new Map<number, RenderedShape[]>();
+    // Runs, not a map by depth: layers apart in the scene at one depth would otherwise be drawn together.
+    const runs: { source: number; shapes: RenderedShape[] }[] = [];
     for (const layer of behind) {
       if (layer.mirror) continue;
+      const shapes: RenderedShape[] = [];
       for (const s of layer.shapes) {
         if (s.clip || s.transform) continue;
-        const shapes = byDepth.get(layer.depth) ?? [];
-        shapes.push({ d: s.d, fill: s.fill, ...(s.opacity !== undefined ? { opacity: s.opacity } : {}), transform: mirror });
-        byDepth.set(layer.depth, shapes);
+        s.id ??= ctx.id({ shape: s.d, fill: s.fill, opacity: s.opacity });
+        shapes.push({ d: s.d, fill: s.fill, ...(s.opacity !== undefined ? { opacity: s.opacity } : {}), transform: mirror, href: s.id });
       }
+      if (shapes.length === 0) continue;
+      const run = runs[runs.length - 1];
+      if (run && run.source === layer.depth) run.shapes.push(...shapes);
+      else runs.push({ source: layer.depth, shapes });
     }
-    for (const [source, shapes] of byDepth) {
+    for (const { source, shapes } of runs) {
       out.push({
         key: `${key}-${out.length}`,
         kind: "reflection",
@@ -94,8 +103,8 @@ export function waterSurface(spans: LakeSpan[], bottom: number, ctx: RenderConte
     shapes.push({ d: water, fill: { type: "linear", id: ctx.id(tint), x1: 0, x2: 0, ...tint } });
 
     // A bright line where the water meets the shore behind it.
-    const light = mix(lake.color, "#ffffff", 0.55);
-    shapes.push({ d: capsulePath(x0, y - 0.6, x1, y + 0.9, ctx.fmt), fill: light, opacity: 0.55, clip: water });
+    const { light, alpha } = shine(lake.color);
+    shapes.push({ d: capsulePath(x0, y - 0.6, x1, y + 0.9, ctx.fmt), fill: light, opacity: ctx.round(0.55 * alpha), clip: water });
 
     if (lake.ripples) {
       // The same ripples in every repeat of the lake: positions relative to its left shore.
@@ -111,13 +120,25 @@ export function waterSurface(spans: LakeSpan[], bottom: number, ctx: RenderConte
         const thick = random.range(0.9, 1.6);
         d += capsulePath(cx - length / 2, y + down, cx + length / 2, y + down + thick, ctx.fmt);
       }
-      if (d) shapes.push({ d, fill: light, opacity: ctx.round(0.2 + 0.35 * RIPPLES), clip: water });
+      if (d) shapes.push({ d, fill: light, opacity: ctx.round((0.2 + 0.35 * RIPPLES) * alpha), clip: water });
     }
   }
   return shapes;
 }
 
-/** A mirror's water as one clip path, shifted down by dy. */
-export function mirrorClip(water: Rect[], dy = 0, fmt: RenderContext["fmt"] = (n) => String(Math.round(n * 100) / 100 + 0)): string {
-  return water.map(([x0, y0, x1, y1]) => rectPath(x0, y0 + dy, x1, y1 + dy, fmt)).join("");
+/**
+ * The water's colour lightened toward white, for the shoreline and ripples. A colour ridgescape
+ * can't mix (a CSS variable) gets white, fainter by as much.
+ */
+function shine(color: string): { light: string; alpha: number } {
+  try {
+    return { light: mix(color, "#ffffff", 0.55), alpha: 1 };
+  } catch {
+    return { light: "#ffffff", alpha: 0.55 };
+  }
+}
+
+/** A mirror's water as one clip path. Its numbers are already rounded to the render's precision, so they're written as they are. */
+export function mirrorClip(water: Rect[]): string {
+  return water.map(([x0, y0, x1, y1]) => rectPath(x0, y0, x1, y1, (n) => String(n + 0))).join("");
 }
